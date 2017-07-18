@@ -1,0 +1,7 @@
+#!/bin/bash
+set -x
+adb shell su root mount -o remount,rw /system
+for f in /system/framework/ril_ofono.jar;  do
+	adb push {$ANDROID_PRODUCT_OUT,/data/local/tmp}$f
+	adb shell su root install -m 0644 {/data/local/tmp,}$f
+done
