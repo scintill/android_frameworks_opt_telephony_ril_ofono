@@ -19,16 +19,26 @@
 
 package net.scintill.ril_ofono;
 
+import android.util.Log;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
 /**
  * This is the interface we publish to rild.
  */
-public interface RadioFunctions {
+public class Ril implements RadioFunctions {
+
+	private static final String TAG = "ril_ofonoJ";
 
 	/**
 	 * @param env the interface rild gave us to interact with it
 	 * @param args arguments from rild
 	 */
-	public void init(Rild env, String[] args);
+	@Override
+	public void init(Rild env, String[] args) {
+		Log.d("ril_ofono", "hello from Java land");
+	}
 
 	/**
 	 * RIL_Request Function
@@ -39,12 +49,18 @@ public interface RadioFunctions {
 	 * @param t should be used in subsequent call to RIL_onResponse
 	 *
 	 */
-	public void onRequest(int request, byte[] data, RilToken t);
+	@Override
+	public void onRequest(int request, byte[] data, RilToken t) {
+		throw new RuntimeException("not implemented");
+	}
 
 	/**
 	 * This function should return the current radio state synchronously
 	 */
-	public int getRadioState();
+	@Override
+	public int getRadioState() {
+		throw new RuntimeException("not implemented");
+	}
 
 	/**
 	 * This function returns "1" if the specified RIL_REQUEST code is
@@ -52,7 +68,10 @@ public interface RadioFunctions {
 	 *
 	 * @param requestCode is one of RIL_REQUEST codes
 	 */
-	public boolean supports(int requestCode);
+	@Override
+	public boolean supports(int requestCode) {
+		throw new RuntimeException("not implemented");
+	}
 
 	/**
 	 * This function is called from a separate thread--not the
@@ -73,11 +92,38 @@ public interface RadioFunctions {
 	 *
 	 * @param t token wants to be canceled
 	 */
-	public void cancel(RilToken t);
+	@Override
+	public void cancel(RilToken t) {
+		throw new RuntimeException("not implemented");
+	}
 
-	/**
-	 * Return a version string for your RIL implementation
-	 */
-	public String getVersion();
+	private static final String DUMMY_INVOCATION_VALUE = "_dummy_invocation_";
+
+    // Early initialization
+    static {
+		// Get some core lib native methods registered. Pretty fragile, but seems better
+		// than alternatives for now.
+		// https://stackoverflow.com/questions/13000561/cli-on-dalvikvm-fails-on-jni-lib
+		// https://android-review.googlesource.com/#/c/157981/
+		// https://github.com/pfalcon/micropython-projs/blob/master/android/pm.py
+        try {
+			// The WithFramework class is meant to be invoked to preload before invoking another
+			// class's main.
+            Class<?> c = Class.forName("com.android.internal.util.WithFramework");
+            Method m = c.getMethod("main", String[].class);
+            m.invoke(null, (Object) new String[]{Ril.class.getName(), DUMMY_INVOCATION_VALUE});
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException("bootstrap failed", e);
+        }
+	}
+
+	public static void main(String[] args) {
+		if (args.length == 1 && args[0].equals(DUMMY_INVOCATION_VALUE)) {
+			return;
+		}
+
+		// in case we run from command-line to test the build:
+		Log.d(TAG, "hello from Java main()");
+	}
 
 }

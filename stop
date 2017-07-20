@@ -1,0 +1,5 @@
+#!/bin/bash
+adb shell \
+	su root setprop rild.libpath /system/lib/libsec-ril.so \;\
+	su root stop ril-daemon-ofono \;\
+	su root start ril-daemon

@@ -5,12 +5,10 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 # Roadmap
 
 1. Alpha implementation in Java
-	1. For simplicity, it will run on Linux but keep Android compatibility in mind (targeting a Dalvik command-line app)
-	1. For simplicity, oFono will also be running on Linux
+	1. `rild` will load our `.so` file, which gives `rild` thunking functions to Java, and gives Java thunking functions to `rild` (for e.g. unsolicited messages)
+	1. For simplicity, oFono will be running on Linux
 	1. The oFono instance will be using the `rilmodem` driver. Yes, this first version of the RIL will be built on a RIL! This will hopefully mean fewer "moving parts" and missing functionality to start, allowing us to focus on the basic architecture.
-	1. The `rild` sockets for the original RIL and this one will be mapped over something like `adb forward` so it's transparent
-1. Port the new `rild` to run on Android on-device
-	1. Write `Android.mk` file, init script to run it, make any tweaks for the runtime subset that Android has
+	1. The `rild` sockets for the original RIL will be mapped over something like `adb forward` so it's transparent
 1. Port oFono to Android on-device
 	1. This old port might help: https://github.com/nitdroid/platform_external_ofono
 1. Pivot oFono onto the `qmimodem` driver
@@ -22,12 +20,23 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 # Usage
 1. Patch your Java framework (frameworks/opt/telephony/src/java/com/android/internal/telephony/RIL.java) to let you control where it tries to connect to `rild`
 	* I made a property for it, so I can change it like so: `adb shell setprop debug.scintill.rilsocket test \; su root killall com.android.phone` (change to empty string to unset)
+1. System patches
+	* See `patches` file for pseudo-patches to get an idea of what I'm running
+	* sepolicy
+	* I changed my ril-daemon init service to clear out LD_PRELOAD, but I think it's not actually necessary
 1. Build from CM12.1 checkout
 	* `mmm ~/Projects/qcril/android_hardware_ril_ofono`
 	* Might depend on the rest of android or at least RIL having been built before.
+	* Run the `start` script in the root directory.
 
 # TODO
 * enable dexopt - see notes in Android.mk
+* threading - interaction between JNI, Dalvik, and rild?
+	* general review of the JNI/C stuff for security and robustness would be good
+* figure out proper solution for libsigchain - see notes in Android.mk
+* better storage path of oat files for the VM? - TODO in libril.c where I set ANDROID_DATA env var
+* hardcoded RIL version number in libril.c, to match what my proprietary rild expects
+* proper SELinux policy. I pushed forward on a full dalvik-cache support to try to get something working, but now I think it was another issue and the dalvik-cache isn't technically needed. maybe best to get some minimal cache access set up so it doesn't bail, but falls back to imageless, than to change security-sensitive things given my low level of understanding SELinux right now
 
 # License
 

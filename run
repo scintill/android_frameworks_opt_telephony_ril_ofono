@@ -1,2 +1,3 @@
 #!/bin/sh
-adb shell env CLASSPATH=/system/framework/ril_ofono.jar dalvikvm net.scintill.ril_ofono.TestMain
+./push
+adb shell env CLASSPATH=/system/framework/ril_ofono.jar dalvikvm net.scintill.ril_ofono.Ril

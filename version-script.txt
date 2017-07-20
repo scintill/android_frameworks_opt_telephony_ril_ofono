@@ -1,0 +1,6 @@
+{
+global:
+  RIL_Init;
+local:
+  *;
+};

@@ -1,0 +1,49 @@
+# external/sepolicy
+diff --git a/domain.te b/domain.te
+index bfb5f05..ad8c182 100644
+--- a/domain.te
++++ b/domain.te
+@@ -276,11 +276,15 @@ neverallow {
+     -appdomain
+     -dumpstate
+     -shell
++	-rild
+     userdebug_or_eng(`-su')
+     -system_server
+     -zygote
+ } { file_type -system_file -exec_type }:file execute;
+ neverallow {
++	rild
++} { file_type -system_file -exec_type -rild_dalvikcache_data_file }:file execute;
++neverallow {
+     domain
+     -appdomain # for oemfs
+     -recovery # for /tmp/update_binary in tmpfs
+diff --git a/file_contexts b/file_contexts
+index 62802e0..1aec671 100644
+--- a/file_contexts
++++ b/file_contexts
+@@ -210,6 +210,7 @@
+ /data/misc/net(/.*)?            u:object_r:net_data_file:s0
+ /data/misc/shared_relro(/.*)?   u:object_r:shared_relro_file:s0
+ /data/misc/sms(/.*)?            u:object_r:radio_data_file:s0
++/data/misc/radio/dalvik-cache(/.*)?  u:object_r:rild_dalvikcache_data_file:s0
+ /data/misc/systemkeys(/.*)?     u:object_r:systemkeys_data_file:s0
+ /data/misc/user(/.*)?           u:object_r:misc_user_data_file:s0
+ /data/misc/vpn(/.*)?            u:object_r:vpn_data_file:s0
+diff --git a/rild.te b/rild.te
+index d8e48d5..337b648 100644
+--- a/rild.te
++++ b/rild.te
+@@ -45,3 +45,11 @@ allow rild self:netlink_kobject_uevent_socket create_socket_perms;
+ wakelock_use(rild)
+ 
+ allow rild self:socket create_socket_perms;
++
++# ril_ofono - based on app, installd
++type rild_dalvikcache_data_file, file_type, data_file_type;
++allow rild dex2oat_exec:file rx_file_perms;
++allow rild rild_dalvikcache_data_file:dir create_dir_perms;
++allow rild rild_dalvikcache_data_file:file create_file_perms;
++allow rild rild_dalvikcache_data_file:file execute;
++allow rild rild_dalvikcache_data_file:lnk_file r_file_perms;

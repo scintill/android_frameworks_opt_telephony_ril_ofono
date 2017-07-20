@@ -1,0 +1,21 @@
+#!/bin/bash
+./push
+set -x
+
+adb shell su root install -o radio -g radio -d /data/misc/radio/dalvik-cache \; su root chcon u:object_r:rild_dalvikcache_data_file:s0 /data/misc/radio/dalvik-cache
+adb shell su root install -o radio -g radio -d /data/misc/radio/dalvik-cache/arm \; su root chcon u:object_r:rild_dalvikcache_data_file:s0 /data/misc/radio/dalvik-cache/arm
+
+adb shell su root mount -o remount,rw /system
+
+adb shell \
+	su root setprop rild.libpath /system/lib/libril_ofono.so \;\
+	su root stop ril-daemon \;\
+	su root stop ril-daemon-ofono \;\
+	su root mv /system/lib/libsigchain.so{,.bak} \;\
+	su root cp -a /system/lib/libsigchain{-real,}.so \;\
+	su root start ril-daemon-ofono
+
+sleep 10
+adb shell su root cp /system/lib/libsigchain.so{.bak,}
+
+adb shell su root mount -o remount,ro /system

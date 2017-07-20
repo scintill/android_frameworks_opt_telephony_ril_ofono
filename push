@@ -1,7 +1,11 @@
 #!/bin/bash
 set -x
+
 adb shell su root mount -o remount,rw /system
-for f in /system/framework/ril_ofono.jar;  do
+
+for f in /system/framework/ril_ofono.jar /system/lib/libril_ofono.so /system/lib/libsigchain-real.so;  do
 	adb push {$ANDROID_PRODUCT_OUT,/data/local/tmp}$f
 	adb shell su root install -m 0644 {/data/local/tmp,}$f
 done
+
+adb shell su root mount -o remount,ro /system
