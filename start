@@ -1,0 +1,3 @@
+#!/bin/bash
+./push
+adb shell setprop debug.scintill.ril_class net.scintill.ril_ofono/.RilOfono \; killall com.android.phone

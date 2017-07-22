@@ -1,0 +1,2 @@
+#!/bin/bash
+adb shell setprop debug.scintill.ril_class '' \; killall com.android.phone
