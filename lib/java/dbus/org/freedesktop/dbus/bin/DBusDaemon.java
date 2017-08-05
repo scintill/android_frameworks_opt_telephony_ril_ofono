@@ -47,9 +47,6 @@ import java.util.Set;
 import java.util.Vector;
 
 import cx.ath.matthew.debug.Debug;
-import cx.ath.matthew.unix.UnixServerSocket;
-import cx.ath.matthew.unix.UnixSocket;
-import cx.ath.matthew.unix.UnixSocketAddress;
 
 /**
  * A replacement DBusDaemon
@@ -59,17 +56,10 @@ public class DBusDaemon extends Thread
    public static final int QUEUE_POLL_WAIT = 500;
    static class Connstruct
    {
-      public UnixSocket usock;
       public Socket tsock;
       public MessageReader min;
       public MessageWriter mout;
       public String unique;
-      public Connstruct(UnixSocket sock)
-      {
-         this.usock = sock;
-         min = new MessageReader(sock.getInputStream());
-         mout = new MessageWriter(sock.getOutputStream());
-      }
       public Connstruct(Socket sock) throws IOException
       {
          this.tsock = sock;
@@ -701,7 +691,6 @@ public class DBusDaemon extends Thread
       }
       if (exists) {
          try {
-            if (null != c.usock) c.usock.close();
             if (null != c.tsock) c.tsock.close();
          } catch (IOException IOe) {}
          synchronized(names) {
@@ -719,18 +708,6 @@ public class DBusDaemon extends Thread
                names.remove(name);
          }
       }
-      if (Debug.debug) Debug.print(Debug.DEBUG, "exit");
-   }
-   public void addSock(UnixSocket us)
-   {
-      if (Debug.debug) Debug.print(Debug.DEBUG, "enter");
-      if (Debug.debug) Debug.print(Debug.WARN, "New Client");
-      Connstruct c = new Connstruct(us);
-      Reader r = new Reader(c);
-      synchronized (conns) {
-         conns.put(c, r);
-      }
-      r.start();
       if (Debug.debug) Debug.print(Debug.DEBUG, "exit");
    }
    public void addSock(Socket s) throws IOException
@@ -819,35 +796,9 @@ public class DBusDaemon extends Thread
 
       // start the daemon
       if (Debug.debug) Debug.print(Debug.WARN, "Binding to "+addr);
-      if ("unix".equals(address.getType()))
-         doUnix(address);
-      else if ("tcp".equals(address.getType()))
+      if ("tcp".equals(address.getType()))
          doTCP(address);
       else throw new Exception("Unknown address type: "+address.getType());
-      if (Debug.debug) Debug.print(Debug.DEBUG, "exit");
-   }
-   private static void doUnix(BusAddress address) throws IOException
-   {
-      if (Debug.debug) Debug.print(Debug.DEBUG, "enter");
-      UnixServerSocket uss;
-      if (null != address. getParameter("abstract"))
-         uss = new UnixServerSocket(new UnixSocketAddress(address.getParameter("abstract"), true)); 
-      else
-         uss = new UnixServerSocket(new UnixSocketAddress(address.getParameter("path"), false)); 
-      DBusDaemon d = new DBusDaemon();
-      d.start();
-      d.sender.start();
-      d.dbus_server.start();
-
-      // accept new connections
-      while (d._run) {
-         UnixSocket s = uss.accept();
-         if ((new Transport.SASL()).auth(Transport.SASL.MODE_SERVER, Transport.SASL.AUTH_EXTERNAL, address.getParameter("guid"), s.getOutputStream(), s.getInputStream(), s)) {
-         //   s.setBlocking(false);
-            d.addSock(s);
-         } else
-            s.close();
-      }
       if (Debug.debug) Debug.print(Debug.DEBUG, "exit");
    }
    private static void doTCP(BusAddress address) throws IOException
@@ -864,7 +815,7 @@ public class DBusDaemon extends Thread
          Socket s = ss.accept();
          boolean authOK=false;
          try {
-        	 authOK = (new Transport.SASL()).auth(Transport.SASL.MODE_SERVER, Transport.SASL.AUTH_EXTERNAL, address.getParameter("guid"), s.getOutputStream(), s.getInputStream(), null);
+        	 authOK = (new Transport.SASL()).auth(Transport.SASL.MODE_SERVER, Transport.SASL.AUTH_EXTERNAL, address.getParameter("guid"), s.getOutputStream(), s.getInputStream());
          } catch (Exception e) {
         	 if (Debug.debug) Debug. print(Debug.DEBUG, e);
          }

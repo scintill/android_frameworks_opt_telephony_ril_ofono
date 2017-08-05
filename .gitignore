@@ -1,1 +1,10 @@
 .idea/workspace.xml
+
+lib/java/dbus/.bin
+lib/java/dbus/.binclasses
+lib/java/dbus/.classes
+lib/java/dbus/.doc
+lib/java/dbus/Manifest
+lib/java/dbus/bin
+lib/java/dbus/classes
+lib/java/dbus/*.jar

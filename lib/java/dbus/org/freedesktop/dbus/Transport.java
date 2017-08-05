@@ -32,9 +32,6 @@ import java.text.Collator;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Vector;
-import cx.ath.matthew.unix.UnixSocket;
-import cx.ath.matthew.unix.UnixServerSocket;
-import cx.ath.matthew.unix.UnixSocketAddress;
 import cx.ath.matthew.utils.Hexdump;
 import cx.ath.matthew.debug.Debug;
 
@@ -106,7 +103,7 @@ public class Transport
       }
       private static Collator col = Collator.getInstance();
       static {
-         col.setDecomposition(Collator.FULL_DECOMPOSITION);
+         col.setDecomposition(Collator.CANONICAL_DECOMPOSITION);
          col.setStrength(Collator.PRIMARY);
       }
 		public static final int LOCK_TIMEOUT = 1000;
@@ -464,7 +461,7 @@ public class Transport
        * Returns true if the auth was successful and false if it failed.
        */
       @SuppressWarnings("unchecked")
-      public boolean auth(int mode, int types, String guid, OutputStream out, InputStream in, UnixSocket us) throws IOException
+      public boolean auth(int mode, int types, String guid, OutputStream out, InputStream in) throws IOException
       {
          String username = System.getProperty("user.name");
          String Uid = null;
@@ -489,10 +486,7 @@ public class Transport
                case MODE_CLIENT:
                   switch (state) {
                      case INITIAL_STATE:
-                        if (null == us)
-                           out.write(new byte[] { 0 });
-                        else 
-                           us.sendCredentialByte((byte) 0);
+                        out.write(new byte[] { 0 });
                         send(out, COMMAND_AUTH);
                         state = WAIT_DATA;
                         break;
@@ -605,14 +599,7 @@ public class Transport
                   switch (state) {
                      case INITIAL_STATE:
                         byte[] buf = new byte[1];
-                        if (null == us) {
-                           in.read(buf);
-                        } else {
-                           buf[0] = us.recvCredentialByte();
-                           int kuid = us.getPeerUID();
-                           if (kuid >= 0)
-                              kernelUid = stupidlyEncode(""+kuid);
-                        }
+                        in.read(buf);
                         if (0 != buf[0]) state = FAILED;
                         else state = WAIT_AUTH;
                         break;
@@ -753,32 +740,10 @@ public class Transport
       if (Debug.debug) Debug.print(Debug.INFO, "Connecting to "+address);
       OutputStream out = null;
       InputStream in = null;
-      UnixSocket us = null;
       Socket s = null;
       int mode = 0;
       int types = 0;
-      if ("unix".equals(address.getType())) {
-         types = SASL.AUTH_EXTERNAL;
-         if (null != address.getParameter("listen")) {
-            mode = SASL.MODE_SERVER;
-            UnixServerSocket uss = new UnixServerSocket();
-            if (null != address.getParameter("abstract"))
-               uss.bind(new UnixSocketAddress(address.getParameter("abstract"), true));
-            else if (null != address.getParameter("path"))
-               uss.bind(new UnixSocketAddress(address.getParameter("path"), false));
-            us = uss.accept();
-         } else {
-            mode = SASL.MODE_CLIENT;
-            us = new UnixSocket();
-            if (null != address.getParameter("abstract"))
-               us.connect(new UnixSocketAddress(address.getParameter("abstract"), true));
-            else if (null != address.getParameter("path"))
-               us.connect(new UnixSocketAddress(address.getParameter("path"), false));
-         }
-         us.setPassCred(true);
-         in = us.getInputStream();
-         out = us.getOutputStream();
-      } else if ("tcp".equals(address.getType())) {
+      if ("tcp".equals(address.getType())) {
          types = SASL.AUTH_SHA;
          if (null != address.getParameter("listen")) {
             mode = SASL.MODE_SERVER;
@@ -796,16 +761,9 @@ public class Transport
          throw new IOException(_("unknown address type ")+address.getType());
       }
       
-      if (!(new SASL()).auth(mode, types, address.getParameter("guid"), out, in, us)) {
+      if (!(new SASL()).auth(mode, types, address.getParameter("guid"), out, in)) {
          out.close();
          throw new IOException(_("Failed to auth"));
-      }
-      if (null != us) {
-         if (Debug.debug) Debug.print(Debug.VERBOSE, "Setting timeout to "+timeout+" on Socket");
-         if (timeout == 1)
-            us.setBlocking(false);
-         else
-            us.setSoTimeout(timeout);
       }
       if (null != s) {
          if (Debug.debug) Debug.print(Debug.VERBOSE, "Setting timeout to "+timeout+" on Socket");

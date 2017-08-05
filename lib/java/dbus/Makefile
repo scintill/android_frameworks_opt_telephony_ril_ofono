@@ -24,6 +24,7 @@ JFLAGS+=-Djava.library.path=$(JAVAUNIXLIBDIR)
 
 # Source/Class locations
 SRCDIR=org/freedesktop
+LIBDEBUGDIR=../debug
 CLASSDIR=classes/org/freedesktop/dbus
 
 # Installation variables. Controls the location of make install.  May be
@@ -50,7 +51,7 @@ RELEASEVERSION = $(shell sed -n '/^Version/s/.* \(.*\):/\1/p' changelog | sed -n
 DISTFILES=dbus-java.tex Makefile org tmp-session.conf CreateInterface.sgml DBusDaemon.sgml ListDBus.sgml DBusViewer.sgml changelog AUTHORS COPYING README INSTALL CreateInterface.sh DBusDaemon.sh ListDBus.sh DBusViewer.sh DBusDaemon.bat CreateInterface.bat ListDBus.bat DBusViewer.bat compile.bat DBusCall.bat DBusCall.sh DBusCall.sgml translations
 
 all: bin doc man
-bin: libdbus-java-$(VERSION).jar dbus-java-viewer-$(VERSION).jar bin/DBusDaemon bin/ListDBus bin/CreateInterface bin/DBusViewer dbus-java-bin-$(VERSION).jar bin/DBusCall
+bin: libdbus-java-$(VERSION).jar bin/DBusDaemon bin/ListDBus bin/CreateInterface bin/DBusViewer dbus-java-bin-$(VERSION).jar bin/DBusCall
 man: CreateInterface.1 ListDBus.1 DBusDaemon.1 DBusViewer.1 DBusCall.1 
 doc: doc/dbus-java.dvi doc/dbus-java.ps doc/dbus-java.pdf doc/dbus-java/index.html doc/api/index.html
 
@@ -76,14 +77,14 @@ binclasses: .binclasses
 	mkdir -p classes
 	$(JAVAC) -cp classes:$(CLASSPATH):${JAVAUNIXJARDIR}/unix.jar:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar -d classes $(JCFLAGS) $(SRCDIR)/dbus/bin/*.java
 	touch .binclasses 
-.classes: $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java translations/*.po
+.classes: $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java translations/*.po $(LIBDEBUGDIR)/cx/ath/matthew/debug/*.java $(LIBDEBUGDIR)/cx/ath/matthew/utils/*.java
 	mkdir -p classes
-	$(JAVAC) -d classes -cp classes:${JAVAUNIXJARDIR}/unix.jar:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar:$(CLASSPATH) $(JCFLAGS) $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java
+	$(JAVAC) -d classes -cp classes:${JAVAUNIXJARDIR}/unix.jar:${JAVAUNIXJARDIR}/debug-$(DEBUG).jar:${JAVAUNIXJARDIR}/hexdump.jar:$(CLASSPATH) $(JCFLAGS) $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java $(LIBDEBUGDIR)/cx/ath/matthew/debug/*.java $(LIBDEBUGDIR)/cx/ath/matthew/utils/*.java
 	(cd translations; for i in *.po; do $(MSGFMT) --java2 -r dbusjava_localized -d ../classes -l $${i%.po} $$i; done)
 	$(MSGFMT) --java2 -r dbusjava_localized -d classes translations/en_GB.po
 	touch .classes
 
-translations/en_GB.po: $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java $(SRCDIR)/dbus/bin/*.java $(SRCDIR)/dbus/viewer/*.java
+translations/en_GB.po: $(SRCDIR)/*.java $(SRCDIR)/dbus/*.java $(SRCDIR)/dbus/exceptions/*.java $(SRCDIR)/dbus/types/*.java $(SRCDIR)/dbus/bin/*.java
 	echo "#java-format" > $@
 	sed -n '/_(/s/.*_("\([^"]*\)").*/\1/p' $^ | sort -u | sed 's/\(.*\)/msgid "\1"\nmsgstr "\1"/' >> $@
 
@@ -93,17 +94,12 @@ libdbus-java-$(VERSION).jar: .classes
 dbus-java-test-$(VERSION).jar: .testclasses
 	echo "Class-Path: ${JARPREFIX}/libdbus-java-$(VERSION).jar" > Manifest
 	(cd classes; $(JAR) -cfm ../$@ ../Manifest org/freedesktop/dbus/test/*.class)
-dbus-java-viewer-$(VERSION).jar: .viewerclasses
-	echo "Class-Path: ${JARPREFIX}/libdbus-java-$(VERSION).jar" > Manifest
-	(cd classes; $(JAR) -cfm ../$@ ../Manifest org/freedesktop/dbus/viewer/*.class)
 dbus-java-bin-$(VERSION).jar: .binclasses
 	echo "Class-Path: ${JARPREFIX}/libdbus-java-$(VERSION).jar" > Manifest
 	(cd classes; $(JAR) -cfm ../$@ ../Manifest org/freedesktop/dbus/bin/*.class)
 dbus.jar: libdbus-java-$(VERSION).jar
 	ln -sf $< $@
 dbus-bin.jar: dbus-java-bin-$(VERSION).jar
-	ln -sf $< $@
-dbus-viewer.jar: dbus-java-viewer-$(VERSION).jar
 	ln -sf $< $@
 	
 jar: libdbus-java-$(VERSION).jar
@@ -146,7 +142,7 @@ bin/%: %.sh .bin
 win/%.bat: %.bat .win
 	sed 's,\%WINJARPATH\%,$(JARPREFIX),;s,\%WINUNIXJARPATH\%,$(JAVAUNIXJARDIR),;s,\%VERSION\%,$(VERSION),;s,\%DEBUG\%,$(DEBUG),' < $< > $@
 
-testbin/%: %.sh .testbin libdbus-java-$(VERSION).jar dbus-java-bin-$(VERSION).jar dbus-bin.jar dbus.jar dbus-viewer.jar
+testbin/%: %.sh .testbin libdbus-java-$(VERSION).jar dbus-java-bin-$(VERSION).jar dbus-bin.jar dbus.jar
 	sed 's,\%JARPATH\%,.,;s,\%JAVAUNIXJARPATH\%,$(JAVAUNIXJARDIR),;s,\%JAVAUNIXLIBPATH\%,$(JAVAUNIXLIBDIR),;s,\%VERSION\%,$(VERSION),;s,\%DEBUG\%,$(DEBUG),;s,\%JAVA\%,$(JAVA),' < $< > $@
 	chmod 755 $@
 
@@ -176,9 +172,6 @@ two-part-client: libdbus-java-$(VERSION).jar dbus-java-test-$(VERSION).jar
 
 profilerun: libdbus-java-$(VERSION).jar dbus-java-test-$(VERSION).jar
 	$(JAVA) $(JFLAGS) $(CPFLAG) $(CLASSPATH):$(JAVAUNIXJARDIR)/unix.jar:$(JAVAUNIXJARDIR)/hexdump.jar:$(JAVAUNIXJARDIR)/debug-$(DEBUG).jar:libdbus-java-$(VERSION).jar:dbus-java-test-$(VERSION).jar org.freedesktop.dbus.test.profile $(PROFILE)
-
-viewer: libdbus-java-$(VERSION).jar dbus-java-viewer-$(VERSION).jar
-	$(JAVA) $(JFLAGS) $(CPFLAG) $(CLASSPATH):$(JAVAUNIXJARDIR)/unix.jar:$(JAVAUNIXJARDIR)/hexdump.jar:$(JAVAUNIXJARDIR)/debug-$(DEBUG).jar:libdbus-java-$(VERSION).jar:dbus-java-viewer-$(VERSION).jar org.freedesktop.dbus.viewer.DBusViewer
 
 #dbus-daemon --config-file=tmp-session.conf --print-pid --print-address=5 --fork >pid 5>address ; \
 
@@ -253,7 +246,7 @@ uninstall:
 
 install: install-bin install-man install-doc
 
-install-bin: dbus-java-viewer-$(VERSION).jar libdbus-java-$(VERSION).jar bin/CreateInterface bin/ListDBus bin/DBusViewer bin/DBusDaemon dbus-java-bin-$(VERSION).jar bin/DBusCall
+install-bin: libdbus-java-$(VERSION).jar bin/CreateInterface bin/ListDBus bin/DBusDaemon dbus-java-bin-$(VERSION).jar bin/DBusCall
 	install -d $(DESTDIR)$(JARPREFIX)
 	install -m 644 libdbus-java-$(VERSION).jar $(DESTDIR)$(JARPREFIX)/dbus-$(VERSION).jar
 	install -m 644 dbus-java-viewer-$(VERSION).jar $(DESTDIR)$(JARPREFIX)/dbus-viewer-$(VERSION).jar
@@ -317,7 +310,7 @@ dbus-java-$(RELEASEVERSION).tar.gz: $(DISTFILES)
 	cp -fa $^ dbus-java-$(RELEASEVERSION)/
 	tar zcf $@ dbus-java-$(RELEASEVERSION)
 
-dbus-java-win-$(VERSION).zip: dbus-java-bin-$(VERSION).jar libdbus-java-$(VERSION).jar win/CreateInterface.bat  win/DBusDaemon.bat  win/DBusViewer.bat  win/ListDBus.bat $(JAVAUNIXJARDIR)/hexdump.jar $(JAVAUNIXJARDIR)/debug-$(DEBUG).jar dbus-java-viewer-$(VERSION).jar win/DBusCall.bat
+dbus-java-win-$(VERSION).zip: dbus-java-bin-$(VERSION).jar libdbus-java-$(VERSION).jar win/CreateInterface.bat  win/DBusDaemon.bat  win/DBusViewer.bat  win/ListDBus.bat $(JAVAUNIXJARDIR)/hexdump.jar $(JAVAUNIXJARDIR)/debug-$(DEBUG).jar win/DBusCall.bat
 	mkdir -p dbus-java-win-$(VERSION)
 	cp -fa dbus-java-bin-$(VERSION).jar dbus-java-win-$(VERSION)/dbus-bin.jar
 	cp -fa dbus-java-viewer-$(VERSION).jar dbus-java-win-$(VERSION)/dbus-viewer.jar
