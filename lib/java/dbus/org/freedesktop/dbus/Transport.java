@@ -10,6 +10,9 @@
 */
 package org.freedesktop.dbus;
 
+import android.net.LocalSocket;
+import android.net.LocalSocketAddress;
+
 import static org.freedesktop.dbus.Gettext._;
 
 import java.io.BufferedReader;
@@ -21,7 +24,6 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -34,6 +36,7 @@ import java.util.Random;
 import java.util.Vector;
 import cx.ath.matthew.utils.Hexdump;
 import cx.ath.matthew.debug.Debug;
+import libcore.io.Libcore;
 
 public class Transport
 {
@@ -463,18 +466,8 @@ public class Transport
       @SuppressWarnings("unchecked")
       public boolean auth(int mode, int types, String guid, OutputStream out, InputStream in) throws IOException
       {
-         String username = System.getProperty("user.name");
-         String Uid = null;
+         String Uid = stupidlyEncode(""+Libcore.os.getuid());
          String kernelUid = null;
-         try {
-            Class c = Class.forName("com.sun.security.auth.module.UnixSystem");
-            Method m = c.getMethod("getUid");
-            Object o = c.newInstance();
-            long uid = (Long) m.invoke(o);
-            Uid = stupidlyEncode(""+uid);
-         } catch (Exception e) {
-            Uid = stupidlyEncode(username);
-         }
          Command c;
          int failed = 0;
          int current = 0;
@@ -741,9 +734,24 @@ public class Transport
       OutputStream out = null;
       InputStream in = null;
       Socket s = null;
+      LocalSocket localSocket = null;
       int mode = 0;
       int types = 0;
-      if ("tcp".equals(address.getType())) {
+      if ("unix".equals(address.getType())) {
+         types = SASL.AUTH_EXTERNAL;
+         if (null != address.getParameter("listen")) {
+             throw new RuntimeException("server mode not implemented");
+         } else {
+            mode = SASL.MODE_CLIENT;
+            localSocket = new LocalSocket(LocalSocket.SOCKET_STREAM);
+            if (null != address.getParameter("abstract"))
+               localSocket.connect(new LocalSocketAddress(address.getParameter("abstract"), LocalSocketAddress.Namespace.ABSTRACT));
+            else if (null != address.getParameter("path"))
+               localSocket.connect(new LocalSocketAddress(address.getParameter("path"), LocalSocketAddress.Namespace.FILESYSTEM));
+            in = localSocket.getInputStream();
+            out = localSocket.getOutputStream();
+         }
+      } else if ("tcp".equals(address.getType())) {
          types = SASL.AUTH_SHA;
          if (null != address.getParameter("listen")) {
             mode = SASL.MODE_SERVER;
@@ -768,6 +776,9 @@ public class Transport
       if (null != s) {
          if (Debug.debug) Debug.print(Debug.VERBOSE, "Setting timeout to "+timeout+" on Socket");
          s.setSoTimeout(timeout);
+      } else if (null != localSocket) {
+         if (Debug.debug) Debug.print(Debug.VERBOSE, "Setting timeout to "+timeout+" on LocalSocket");
+         localSocket.setSoTimeout(timeout);
       }
       mout = new MessageWriter(out);
       min = new MessageReader(in);
