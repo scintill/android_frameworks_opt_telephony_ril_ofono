@@ -21,13 +21,21 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 1. System patches
 	* See `patches` file for pseudo-patches to get an idea of what I'm running
 		* Patch telephony framework to be able to load the RIL class from another package
+	* system/core/rootdir/init.rc - add dbus and ofono services
+	* install dbus conf file in /system/etc/dbus.conf
+	* sepolicy updates for dbus and radio interop
 1. Build from CM12.1 checkout
 	* `mmm ~/Projects/qcril/android_hardware_ril_ofono`
 	* Might depend on the rest of android or at least RIL having been built before.
 	* Run the `start` script in the root directory.
 
+# Resources and Credit
+* https://github.com/nitdroid/ofono-ril for some help on mapping ofono properties to Android RIL
+
 # TODO
 * dexopt/proguard? - see notes in Android.mk
+* make sure socket operations on the main thread trigger strict mode exceptions (are Unix sockets a loophole?)
+* make dbus exceptions be checked exceptions, so the compiler will find them and I have to handle them
 
 # License
 

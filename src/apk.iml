@@ -2,23 +2,36 @@
 <module type="JAVA_MODULE" version="4">
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
-    <content url="file://$MODULE_DIR$/../../../cyanogenmod/12/device/samsung/serrano-common/ril">
-      <sourceFolder url="file://$MODULE_DIR$/../../../cyanogenmod/12/device/samsung/serrano-common/ril" isTestSource="false" packagePrefix="com.android.internal.telephony" />
+    <content url="file://$MODULE_DIR$/../cyanogenmod/12/device/samsung/serrano-common/ril">
+      <sourceFolder url="file://$MODULE_DIR$/../cyanogenmod/12/device/samsung/serrano-common/ril" isTestSource="false" packagePrefix="com.android.internal.telephony" />
     </content>
-    <content url="file://$MODULE_DIR$/../../../cyanogenmod/12/frameworks/base/core/java">
-      <sourceFolder url="file://$MODULE_DIR$/../../../cyanogenmod/12/frameworks/base/core/java" isTestSource="false" />
+    <content url="file://$MODULE_DIR$/../cyanogenmod/12/frameworks/base/core/java">
+      <sourceFolder url="file://$MODULE_DIR$/../cyanogenmod/12/frameworks/base/core/java" isTestSource="false" />
     </content>
-    <content url="file://$MODULE_DIR$/../../../cyanogenmod/12/frameworks/base/telephony/java">
-      <sourceFolder url="file://$MODULE_DIR$/../../../cyanogenmod/12/frameworks/base/telephony/java" isTestSource="false" />
+    <content url="file://$MODULE_DIR$/../cyanogenmod/12/frameworks/base/telephony/java">
+      <sourceFolder url="file://$MODULE_DIR$/../cyanogenmod/12/frameworks/base/telephony/java" isTestSource="false" />
     </content>
-    <content url="file://$MODULE_DIR$/../../../cyanogenmod/12/frameworks/opt/telephony">
-      <sourceFolder url="file://$MODULE_DIR$/../../../cyanogenmod/12/frameworks/opt/telephony/src/java" isTestSource="false" />
+    <content url="file://$MODULE_DIR$/../cyanogenmod/12/frameworks/opt/telephony">
+      <sourceFolder url="file://$MODULE_DIR$/../cyanogenmod/12/frameworks/opt/telephony/src/java" isTestSource="false" />
     </content>
-    <content url="file://$MODULE_DIR$/../../../cyanogenmod/12/packages/services/Telephony/src">
-      <sourceFolder url="file://$MODULE_DIR$/../../../cyanogenmod/12/packages/services/Telephony/src" isTestSource="false" />
+    <content url="file://$MODULE_DIR$/../cyanogenmod/12/libcore/luni/src/main/java">
+      <sourceFolder url="file://$MODULE_DIR$/../cyanogenmod/12/libcore/luni/src/main/java" isTestSource="false" />
+    </content>
+    <content url="file://$MODULE_DIR$/../cyanogenmod/12/packages/services/Telephony/src">
+      <sourceFolder url="file://$MODULE_DIR$/../cyanogenmod/12/packages/services/Telephony/src" isTestSource="false" />
+    </content>
+    <content url="file://$MODULE_DIR$/../lib/java/dbus">
+      <sourceFolder url="file://$MODULE_DIR$/../lib/java/dbus" isTestSource="false" />
+    </content>
+    <content url="file://$MODULE_DIR$/../lib/java/debug">
+      <sourceFolder url="file://$MODULE_DIR$/../lib/java/debug" isTestSource="false" />
+    </content>
+    <content url="file://$MODULE_DIR$/../lib/java/ofono">
+      <sourceFolder url="file://$MODULE_DIR$/../lib/java/ofono" isTestSource="false" />
     </content>
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/java" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
