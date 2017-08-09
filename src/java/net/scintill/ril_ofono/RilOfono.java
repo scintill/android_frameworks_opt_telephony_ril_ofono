@@ -34,9 +34,11 @@ import com.android.internal.telephony.BaseCommands;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.RILConstants;
+import com.android.internal.telephony.SmsResponse;
 import com.android.internal.telephony.UUSInfo;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
 import com.android.internal.telephony.gsm.SmsBroadcastConfigInfo;
+import com.android.internal.telephony.gsm.SmsMessage;
 import com.android.internal.telephony.uicc.AdnRecord;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
@@ -50,12 +52,14 @@ import org.freedesktop.dbus.DBusConnection;
 import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSigHandler;
 import org.freedesktop.dbus.DBusSignal;
+import org.freedesktop.dbus.Path;
 import org.freedesktop.dbus.UInt16;
 import org.freedesktop.dbus.UInt32;
 import org.freedesktop.dbus.Variant;
 import org.freedesktop.dbus.exceptions.DBusException;
 import org.freedesktop.dbus.exceptions.DBusExecutionException;
 import org.ofono.Manager;
+import org.ofono.MessageManager;
 import org.ofono.Modem;
 import org.ofono.NetworkRegistration;
 import org.ofono.SimManager;
@@ -66,6 +70,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_EDGE;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_GSM;
@@ -74,6 +79,7 @@ import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_LTE;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UMTS;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
+import static com.android.internal.telephony.CommandException.Error.INVALID_PARAMETER;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 
 public class RilOfono extends BaseCommands implements CommandsInterface {
@@ -100,6 +106,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     private final Map<String, Variant> mNetRegProps = new HashMap<>();
     private SimManager mSim;
     private final Map<String, Variant> mSimProps = new HashMap<>();
+    private MessageManager mMessenger;
 
     public RilOfono(Context context, int preferredNetworkType, int cdmaSubscription, Integer instanceId) {
         super(context);
@@ -120,11 +127,13 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mModem = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, Modem.class);
                     mSim = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, SimManager.class);
                     mNetReg = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, NetworkRegistration.class);
+                    mMessenger = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageManager.class);
                     delegateSigHandler(Manager.ModemAdded.class);
                     delegateSigHandler(Manager.ModemRemoved.class);
                     delegateSigHandler(Modem.PropertyChanged.class);
                     delegateSigHandler(NetworkRegistration.PropertyChanged.class);
                     delegateSigHandler(SimManager.PropertyChanged.class);
+                    delegateSigHandler(org.ofono.Message.PropertyChanged.class);
                     initProps();
                     onModemChange(false); // initialize starting state
                 } catch (DBusException e) {
@@ -448,10 +457,65 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     }
 
-    @Override
-    public void sendSMS(String smscPDU, String pdu, Message response) {
-        genericTrace(); // XXX NYI
+    AtomicInteger mSmsRef = new AtomicInteger(1);
+    final Map<String, Message> mMapSmsDbusPathToSenderCallback = new HashMap<>();
+    // TODO synchronization on this map object is how I ensure signals don't arrive before the entry into this map,
+    // but are there any adverse effects of synchronizing so broadly?
 
+    @Override
+    public void sendSMS(String smscPDUStr, String pduStr, final Message response) {
+        Rlog.d(TAG, "sendSMS");
+        // TODO gsm-specific?
+        // TODO is there a way to preserve the whole pdu to ofono? should we check for special things that ofono won't do, and refuse to send if the PDU contains them?
+
+        final SmsMessage msg = parseSmsPduStrs(smscPDUStr, pduStr);
+
+        if (msg == null || msg.getRecipientAddress() == null || msg.getMessageBody() == null) {
+            respondExc("sendSMS", response, INVALID_PARAMETER, null);
+        } else {
+            mDbusHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        synchronized (mMapSmsDbusPathToSenderCallback) {
+                            // TODO timeout on this method? at least we're not on the main thread,
+                            // but we could block anything else trying to get on the dbus thread
+                            Path sentMessage = mMessenger.SendMessage(msg.getRecipientAddress(), msg.getMessageBody());
+                            mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), response);
+                        }
+                    } catch (Throwable t) {
+                        Rlog.e(TAG, "Error sending msg", t);
+                        respondExc("sendSMS", response, GENERIC_FAILURE, null);
+                    }
+                }
+            });
+        }
+    }
+
+    public void handleSendSmsComplete(String msgDbusPath, String status) {
+        // find callback from sendSMS()
+        Message senderCb;
+        synchronized (mMapSmsDbusPathToSenderCallback) {
+            senderCb = mMapSmsDbusPathToSenderCallback.get(msgDbusPath);
+        }
+        if (senderCb == null) {
+            Rlog.e(TAG, "Got a signal about a message we don't know about! path="+msgDbusPath);
+        } else {
+            // we currently have no use for the sms reference numbers, but let's give out sensible ones
+            boolean success = status.equals("sent");
+            String ackPdu = ""; // we don't have one, I don't think SmsResponse uses it either
+            if (success) {
+                respondOk("sendSMS", senderCb, new SmsResponse(mSmsRef.incrementAndGet(), ackPdu, -1));
+            } else {
+                respondExc("sendSMS", senderCb, GENERIC_FAILURE, new SmsResponse(mSmsRef.incrementAndGet(), ackPdu, -1));
+            }
+        }
+    }
+
+    @Override
+    public void sendSMSExpectMore(String smscPDU, String pdu, Message result) {
+        // TODO can oFono benefit from knowing to "expect more"?
+        sendSMS(smscPDU, pdu, result);
     }
 
     @Override
@@ -1043,7 +1107,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         onModemChange(true);
     }
 
-    // property signal handlers should just delegate to handlePropChange()
+    // simple property-mirroring signal handlers should delegate to handlePropChange()
     public void handle(Modem.PropertyChanged s) {
         handlePropChange(mModem, s.name, s.value);
     }
@@ -1054,6 +1118,15 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     public void handle(SimManager.PropertyChanged s) {
         handlePropChange(mSim, s.name, s.value);
+    }
+
+    public void handle(org.ofono.Message.PropertyChanged s) {
+        if (s.name.equals("State")) {
+            String value = (String) s.value.getValue();
+            if (value.equals("sent") || value.equals("failed")) {
+                handleSendSmsComplete(s.getPath(), value);
+            }
+        }
     }
 
     // first parameter is just to select the method by type
@@ -1224,7 +1297,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     // TODO
     // things I noticed BaseCommands overrides but has an empty implementation:
-    // getDataCallProfile(), sendSMSExpectMore(), onRadioAvailable(), getModemCapability(),
+    // getDataCallProfile(), onRadioAvailable(), getModemCapability(),
     // setUiccSubscription(), setDataProfile(), setDataAllowed(), requestShutdown(),
     // iccOpenLogicalChannel(), iccCloseLogicalChannel(), iccTransmitApduLogicalChannel(),
     // iccTransmitApduBasicChannel(), getAtr(), setLocalCallHold()
@@ -1380,6 +1453,18 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
             return null;
         }
         return file;
+    }
+
+    private SmsMessage parseSmsPduStrs(String smscPDUStr, String pduStr) {
+        if (smscPDUStr == null) {
+            smscPDUStr = "00"; // see PduParser; means no smsc
+        }
+        try {
+            return SmsMessage.createFromPdu(IccUtils.hexStringToBytes(smscPDUStr + pduStr));
+        } catch (Throwable t) {
+            // SmsMessage should have logged information about the error
+            return null;
+        }
     }
 
     // opposite of IccUtils#bcdToString

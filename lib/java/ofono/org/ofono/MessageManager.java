@@ -3,6 +3,7 @@ import java.util.List;
 import java.util.Map;
 import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSignal;
+import org.freedesktop.dbus.Path;
 import org.freedesktop.dbus.Variant;
 import org.freedesktop.dbus.exceptions.DBusException;
 public interface MessageManager extends DBusInterface
@@ -63,7 +64,7 @@ public interface MessageManager extends DBusInterface
 
   public Map<String,Variant> GetProperties();
   public void SetProperty(String property, Variant value);
-  public DBusInterface SendMessage(String to, String text);
+  public Path SendMessage(String to, String text);
   public List<Struct2> GetMessages();
 
 }
