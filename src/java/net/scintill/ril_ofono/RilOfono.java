@@ -120,6 +120,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         mDbusHandler = new Handler(dbusThread.getLooper(), new EmptyHandlerCallback());
 
         mDbusHandler.post(new Runnable() {
+            @SuppressWarnings("unchecked")
             @Override
             public void run() {
                 try {
@@ -128,12 +129,13 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mSim = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, SimManager.class);
                     mNetReg = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, NetworkRegistration.class);
                     mMessenger = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageManager.class);
-                    delegateSigHandler(Manager.ModemAdded.class);
-                    delegateSigHandler(Manager.ModemRemoved.class);
-                    delegateSigHandler(Modem.PropertyChanged.class);
-                    delegateSigHandler(NetworkRegistration.PropertyChanged.class);
-                    delegateSigHandler(SimManager.PropertyChanged.class);
-                    delegateSigHandler(org.ofono.Message.PropertyChanged.class);
+                    DBusSigHandler sigHandler = new DbusSignalHandler();
+                    mDbus.addSigHandler(Manager.ModemAdded.class, sigHandler);
+                    mDbus.addSigHandler(Manager.ModemRemoved.class, sigHandler);
+                    mDbus.addSigHandler(Modem.PropertyChanged.class, sigHandler);
+                    mDbus.addSigHandler(NetworkRegistration.PropertyChanged.class, sigHandler);
+                    mDbus.addSigHandler(SimManager.PropertyChanged.class, sigHandler);
+                    mDbus.addSigHandler(org.ofono.Message.PropertyChanged.class, sigHandler);
                     initProps();
                     onModemChange(false); // initialize starting state
                 } catch (DBusException e) {
@@ -1324,19 +1326,16 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         }
     }
 
-    private <T extends DBusSignal> void delegateSigHandler(Class<T> type) throws DBusException {
-        mDbus.addSigHandler(type, new DBusSigHandler<T>() {
-            @Override
-            public void handle(T s) {
-                try {
-                    RilOfono.class.getMethod("handle", s.getClass()).invoke(RilOfono.this, s);
-                } catch (IllegalAccessException | NoSuchMethodException e) {
-                    Rlog.e(TAG, "Unexpected exception while delegating dbus event", e);
-                } catch (InvocationTargetException e) {
-                    throw new RuntimeException(e.getCause());
-                }
+    private class DbusSignalHandler implements DBusSigHandler {
+        public void handle(DBusSignal s) {
+            try {
+                RilOfono.class.getMethod("handle", s.getClass()).invoke(RilOfono.this, s);
+            } catch (IllegalAccessException | NoSuchMethodException e) {
+                Rlog.e(TAG, "Unexpected exception while delegating dbus signal", e);
+            } catch (InvocationTargetException e) {
+                throw new RuntimeException(e.getCause());
             }
-        });
+        }
     }
 
     private void respondOk(String caller, Message response, Object o) {
