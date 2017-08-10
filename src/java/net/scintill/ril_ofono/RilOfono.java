@@ -174,8 +174,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void supplyIccPinForApp(String pin, String aid, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -185,8 +184,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void supplyIccPukForApp(String puk, String newPin, String aid, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -196,8 +194,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void supplyIccPin2ForApp(String pin2, String aid, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -207,8 +204,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void supplyIccPuk2ForApp(String puk2, String newPin2, String aid, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -218,8 +214,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void changeIccPinForApp(String oldPin, String newPin, String aidPtr, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -229,20 +224,17 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void changeIccPin2ForApp(String oldPin2, String newPin2, String aidPtr, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void changeBarringPassword(String facility, String oldPwd, String newPwd, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void supplyDepersonalization(String netpin, String type, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -253,26 +245,22 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void getPDPContextList(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getDataCallList(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void dial(String address, int clirMode, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void dial(String address, int clirMode, UUSInfo uusInfo, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -285,7 +273,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         // TODO GSM-specific?
         String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
         if (imsi != null) {
-            respondOk("getIMSIForApp", result, imsi);
+            respondOk("getIMSIForApp", result, imsi, true);
         } else {
             respondExc("getIMSIForApp", result, GENERIC_FAILURE, null);
         }
@@ -294,109 +282,93 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     @Override
     public void getIMEI(Message result) {
         // TODO GSM-specific?
-        respondWithModemProp("getIMEI", "Serial", result);
+        respondOk("getIMEI", result, getProp(mModemProps, "Serial", ""), true);
     }
 
     @Override
     public void getIMEISV(Message result) {
-        // TODO GSM-specific? correct?
-        respondWithModemProp("getIMEISV", "SoftwareVersionNumber", result);
+        // TODO GSM-specific?
+        respondOk("getIMEISV", result, getProp(mModemProps, "SoftwareVersionNumber", ""), true);
     }
 
     @Override
     public void hangupConnection(int gsmIndex, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void hangupWaitingOrBackground(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void hangupForegroundResumeBackground(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void switchWaitingOrHoldingAndActive(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void conference(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setPreferredVoicePrivacy(boolean enable, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getPreferredVoicePrivacy(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void separateConnection(int gsmIndex, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void acceptCall(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void rejectCall(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void explicitCallTransfer(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getLastCallFailCause(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getLastPdpFailCause(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getLastDataCallFailCause(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setMute(boolean enableMute, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getMute(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -404,7 +376,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         // TODO I can't seem to find this on the ofono bus, but supposedly it's supported
         // make up a low strength
         SignalStrength s = new SignalStrength(20, 1, -1, -1, -1, -1, -1, true);
-        respondOk("getSignalStrength", response, s);
+        respondOk("getSignalStrength", response, s, true);
     }
 
     @Override
@@ -448,26 +420,22 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void sendDtmf(char c, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void startDtmf(char c, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void stopDtmf(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void sendBurstDtmf(String dtmfString, int on, int off, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     AtomicInteger mSmsRef = new AtomicInteger(1);
@@ -535,7 +503,8 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         String dateStr = (String) info.get("SentTime").getValue();
         String sender = (String) info.get("Sender").getValue();
 
-        Rlog.d(TAG, "handleIncomingMessage "+sender+" "+dateStr+" "+content); // TODO sensitive
+        // note: sensitive data
+        //Rlog.d(TAG, "handleIncomingMessage "+sender+" "+dateStr+" "+content);
 
         Date date = Utils.parseOfonoDate(dateStr);
         if (date == null) {
@@ -563,44 +532,37 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void sendCdmaSms(byte[] pdu, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void sendImsGsmSms(String smscPDU, String pdu, int retry, int messageRef, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void sendImsCdmaSms(byte[] pdu, int retry, int messageRef, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void deleteSmsOnSim(int index, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void deleteSmsOnRuim(int index, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void writeSmsToSim(int status, String smsc, String pdu, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void writeSmsToRuim(int status, String pdu, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -618,20 +580,17 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void acknowledgeLastIncomingGsmSms(boolean success, int cause, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void acknowledgeLastIncomingCdmaSms(boolean success, int cause, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void acknowledgeIncomingGsmSmsWithPdu(boolean success, String ackPdu, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -642,17 +601,19 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     @Override
     public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message response) {
         String humanPath = path + "/" + Integer.toHexString(fileid);
-        Rlog.d(TAG, "iccIO " + command + " " + humanPath + " " + p1 + " " + p2 + " " + p3 + " " + data + " " + pin2 + " " + aid);
+        // note: could be sensitive data
+        //Rlog.d(TAG, "iccIO " + command + " " + humanPath + " " + p1 + " " + p2 + " " + p3 + " " + data + " " + pin2 + " " + aid);
 
+        // note: responses could be sensitive data
         final int COMMAND_GET_RESPONSE = 0xc0;
         final int COMMAND_READ_BINARY = 0xb0;
         final int COMMAND_READ_RECORD = 0xb2;
         if (command == COMMAND_GET_RESPONSE) {
             SimFile file = getSimFile(path, fileid);
             if (file != null) {
-                respondOk("iccIOForApp GetResponse " + humanPath, response, new IccIoResult(0x90, 0x00, file.getResponse()));
+                respondOk("iccIOForApp GetResponse " + humanPath, response, new IccIoResult(0x90, 0x00, file.getResponse()), true);
             } else {
-                respondOk("iccIOForApp GetResponse " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]));
+                respondOk("iccIOForApp GetResponse " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]), true);
             }
         } else if (command == COMMAND_READ_BINARY) {
             int offset = p1 << 8 + p2;
@@ -661,75 +622,66 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
             if (file != null) {
                 byte[] filePiece = new byte[length];
                 System.arraycopy(file.mData, offset, filePiece, 0, length);
-                respondOk("iccIOForApp ReadBinary " + humanPath, response, new IccIoResult(0x90, 0x00, filePiece));
+                respondOk("iccIOForApp ReadBinary " + humanPath, response, new IccIoResult(0x90, 0x00, filePiece), true);
             } else {
-                respondOk("iccIOForApp ReadBinary " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]));
+                respondOk("iccIOForApp ReadBinary " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]), true);
             }
         } else if (command == COMMAND_READ_RECORD) {
             // TODO ignoring some semantics of READ_RECORD...
             SimFile file = getSimFile(path, fileid);
             if (file != null) {
-                respondOk("iccIOForApp ReadRecord " + humanPath, response, new IccIoResult(0x90, 0x00, file.mData));
+                respondOk("iccIOForApp ReadRecord " + humanPath, response, new IccIoResult(0x90, 0x00, file.mData), true);
             } else {
-                respondOk("iccIOForApp ReadRecord " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]));
+                respondOk("iccIOForApp ReadRecord " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]), true);
             }
         } else {
-            respondExc("iccIOForApp "+command+" "+humanPath, response, REQUEST_NOT_SUPPORTED, null);
+            respondExc("iccIOForApp "+command+" "+humanPath, response, REQUEST_NOT_SUPPORTED, null, true);
         }
     }
 
     @Override
     public void queryCLIP(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getCLIR(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setCLIR(int clirMode, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void queryCallWaiting(int serviceClass, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setCallWaiting(boolean enable, int serviceClass, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setCallForward(int action, int cfReason, int serviceClass, String number, int timeSeconds, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void queryCallForwardStatus(int cfReason, int serviceClass, String number, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setNetworkSelectionModeAutomatic(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setNetworkSelectionModeManual(String operatorNumeric, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -744,13 +696,12 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void getAvailableNetworks(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getBasebandVersion(Message response) {
-        respondWithModemProp("getBaseBandVersion", "Revision", response);
+        respondOk("getBaseBandVersion", response, getProp(mModemProps, "Revision", ""), true);
     }
 
     @Override
@@ -760,8 +711,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void queryFacilityLockForApp(String facility, String password, int serviceClass, String appId, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -771,156 +721,130 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void setFacilityLockForApp(String facility, boolean lockState, String password, int serviceClass, String appId, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void sendUSSD(String ussdString, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void cancelPendingUssd(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void resetRadio(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setBandMode(int bandMode, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void queryAvailableBandMode(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setPreferredNetworkType(int networkType, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getPreferredNetworkType(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getNeighboringCids(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setLocationUpdates(boolean enable, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getSmscAddress(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setSmscAddress(String address, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void reportSmsMemoryStatus(boolean available, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void reportStkServiceIsRunning(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void invokeOemRilRequestRaw(byte[] data, Message response) {
-        genericTrace(); // XXX NYI
-    }
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);    }
 
     @Override
     public void invokeOemRilRequestStrings(String[] strings, Message response) {
-        genericTrace(); // XXX NYI
-    }
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);    }
 
     @Override
     public void sendTerminalResponse(String contents, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void sendEnvelope(String contents, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void sendEnvelopeWithStatus(String contents, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void handleCallSetupRequestFromSim(boolean accept, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setGsmBroadcastActivation(boolean activate, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setGsmBroadcastConfig(SmsBroadcastConfigInfo[] config, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getGsmBroadcastConfig(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getDeviceIdentity(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getCDMASubscription(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void sendCDMAFeatureCode(String FeatureCode, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -930,20 +854,17 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void queryCdmaRoamingPreference(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setCdmaRoamingPreference(int cdmaRoamingType, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setCdmaSubscriptionSource(int cdmaSubscriptionType, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -958,44 +879,37 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void queryTTYMode(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setupDataCall(String radioTechnology, String profile, String apn, String user, String password, String authType, String protocol, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void deactivateDataCall(int cid, int reason, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setCdmaBroadcastActivation(boolean activate, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null, true);
     }
 
     @Override
     public void setCdmaBroadcastConfig(CdmaSmsBroadcastConfigInfo[] configs, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null, true);
     }
 
     @Override
     public void getCdmaBroadcastConfig(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null, true);
     }
 
     @Override
     public void exitEmergencyCallbackMode(Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     private static final String SIM_APP_ID = "00";
@@ -1032,19 +946,17 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
         cardStatus.mUniversalPinState = IccCardStatus.PinState.PINSTATE_DISABLED; // TODO
 
-        respondOk("getIccCardStatus", result, cardStatus);
+        respondOk("getIccCardStatus", result, cardStatus, true);
     }
 
     @Override
     public void requestIsimAuthentication(String nonce, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void requestIccSimAuthentication(int authContext, String data, String aid, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     private Object getVoiceRadioTechnologyAsyncResult() {
@@ -1065,50 +977,42 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void getCellInfoList(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setCellInfoListRate(int rateInMillis, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void setInitialAttachApn(String apn, String protocol, int authType, String username, String password, Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void nvReadItem(int itemID, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void nvWriteItem(int itemID, String itemValue, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void nvWriteCdmaPrl(byte[] preferredRoamingList, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void nvResetConfig(int resetType, Message response) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
     public void getHardwareConfig(Message result) {
-        genericTrace(); // XXX NYI
-
+        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
     @Override
@@ -1175,11 +1079,15 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     // first parameter is just to select the method by type
     private void handlePropChange(Modem modem, String name, Variant value) {
         handlePropChange(mModemProps, Modem.class, name, value);
-        // TODO correct thread?
         if (name.equals("Online")) {
-            boolean online = (Boolean) value.getValue();
-            setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
-        }
+            final boolean online = (Boolean) value.getValue();
+            mMainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
+                }
+            });
+        };
     }
 
     private void handlePropChange(NetworkRegistration netReg, String name, Variant value) {
@@ -1211,8 +1119,8 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     private void handlePropChange(Map<String, Variant> propsToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant value) {
-        // TODO at least some of these are sensitive enough they shouldn't be logged
-        Rlog.d(TAG, dbusObIface.getSimpleName() + " propchange: " + name + "=" + value);
+        // some of these are sensitive enough they shouldn't be logged
+        //Rlog.d(TAG, dbusObIface.getSimpleName() + " propchange: " + name + "=" + value);
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToUpdate) {
             propsToUpdate.put(name, value);
@@ -1347,14 +1255,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     private String getCallerMethodName() {
         StackTraceElement[] elements = Thread.currentThread().getStackTrace();
-        return elements[4].getMethodName();
-    }
-
-    /**
-     * Log the name of the method that called this one.
-     */
-    private void genericTrace() {
-        Rlog.v(TAG, getCallerMethodName()+"()");
+        return elements[3].getMethodName();
     }
 
     private static final String OFONO_BUS_NAME = "org.ofono";
@@ -1380,8 +1281,14 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     private void respondOk(String caller, Message response, Object o) {
+        respondOk(caller, response, o, false);
+    }
+
+    private void respondOk(String caller, Message response, Object o, boolean quiet) {
         // TODO at least some of these are sensitive enough they shouldn't be logged
-        Rlog.d(TAG, "respondOk from "+caller+": "+toDebugString(o));
+        if (!quiet) {
+            Rlog.d(TAG, "respondOk from " + caller + ": " + toDebugString(o));
+        }
         if (response != null) {
             AsyncResult.forMessage(response, o, null);
             response.sendToTarget();
@@ -1405,12 +1312,6 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     private Message cbToMsg(Handler.Callback cb) {
         return new Handler(cb).obtainMessage();
-    }
-
-    // TODO rewrite using getProp() ?
-    private void respondWithModemProp(String caller, String propertyName, Message response) {
-        Variant value = mModemProps.get(propertyName);
-        respondOk(caller, response, value != null ? value.getValue() : null);
     }
 
     // mostly a tag type to remind me use this correctly (only construct one for each purpose)
@@ -1487,7 +1388,6 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                 file.mType = TYPE_EF;
                 file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
                 file.mData = new AdnRecord(null, numbers[0]).buildAdnString(14 /*AdnRecord.FOOTER_SIZE*/);
-                Rlog.d(TAG, "subscribernumber "+numbers[0]+"="+toDebugString(file.mData));
             }
         } else {
             return null;
@@ -1564,12 +1464,21 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         return i < s.length() ? (byte)(s.charAt(i) - '0') : 0xf;
     }
 
-    public String toDebugString(Object o) {
+    public CharSequence toDebugString(Object o) {
         if (o instanceof byte[]) {
             return IccUtils.bytesToHexString((byte[])o);
         } else if (o instanceof IccIoResult) {
             IccIoResult iccIoResult = (IccIoResult)o;
             return iccIoResult.toString()+" "+IccUtils.bytesToHexString(iccIoResult.payload);
+        } else if (o instanceof Object[]) {
+            return "{"+TextUtils.join(", ", (Object[])o)+"}";
+        } else if (o instanceof int[]) {
+            Integer[] sa = new Integer[((int[])o).length];
+            int i = 0;
+            for (int j : (int[]) o) {
+                sa[i++] = j;
+            }
+            return toDebugString(sa);
         } else {
             return String.valueOf(o);
         }
