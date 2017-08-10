@@ -20,7 +20,10 @@ LOCAL_PATH := $(call my-dir)
 # Build our Java RIL
 include $(CLEAR_VARS)
 	LOCAL_PACKAGE_NAME := RilOfono
-	LOCAL_SRC_FILES := $(call all-java-files-under,src/java) $(call all-java-files-under,lib/java)
+	LOCAL_SRC_FILES := $(call all-java-files-under,src/java) \
+						$(call all-java-files-under,lib/java/dbus) \
+						$(call all-java-files-under,lib/java/debug) \
+						$(call all-java-files-under,lib/java/ofono)
 	LOCAL_JAVA_LIBRARIES := telephony-common
 	LOCAL_CERTIFICATE := platform
 

@@ -26,19 +26,21 @@ import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
+import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
 import android.telephony.SignalStrength;
+import android.telephony.SmsMessage;
 import android.text.TextUtils;
 
 import com.android.internal.telephony.BaseCommands;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.RILConstants;
+import com.android.internal.telephony.SmsConstants;
 import com.android.internal.telephony.SmsResponse;
 import com.android.internal.telephony.UUSInfo;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
 import com.android.internal.telephony.gsm.SmsBroadcastConfigInfo;
-import com.android.internal.telephony.gsm.SmsMessage;
 import com.android.internal.telephony.uicc.AdnRecord;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
@@ -65,11 +67,16 @@ import org.ofono.NetworkRegistration;
 import org.ofono.SimManager;
 import org.ofono.Struct1;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_EDGE;
@@ -110,7 +117,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     public RilOfono(Context context, int preferredNetworkType, int cdmaSubscription, Integer instanceId) {
         super(context);
-        Rlog.d(TAG, String.format("RilOfono %d starting", BUILD_NUMBER));
+        Rlog.d(TAG, "RilOfono "+BUILD_NUMBER+" starting");
 
         mPhoneType = RILConstants.NO_PHONE;
 
@@ -136,6 +143,8 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mDbus.addSigHandler(NetworkRegistration.PropertyChanged.class, sigHandler);
                     mDbus.addSigHandler(SimManager.PropertyChanged.class, sigHandler);
                     mDbus.addSigHandler(org.ofono.Message.PropertyChanged.class, sigHandler);
+                    mDbus.addSigHandler(MessageManager.IncomingMessage.class, sigHandler);
+                    mDbus.addSigHandler(MessageManager.ImmediateMessage.class, sigHandler);
                     initProps();
                     onModemChange(false); // initialize starting state
                 } catch (DBusException e) {
@@ -144,6 +153,8 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                 }
             }
         });
+
+        //mMainHandler.postDelayed(new Tests(this), 10000);
     }
 
     @Override
@@ -518,6 +529,36 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     public void sendSMSExpectMore(String smscPDU, String pdu, Message result) {
         // TODO can oFono benefit from knowing to "expect more"?
         sendSMS(smscPDU, pdu, result);
+    }
+
+    private void handleIncomingMessage(String content, Map<String, Variant> info) {
+        String dateStr = (String) info.get("SentTime").getValue();
+        String sender = (String) info.get("Sender").getValue();
+
+        Rlog.d(TAG, "handleIncomingMessage "+sender+" "+dateStr+" "+content); // TODO sensitive
+
+        Date date = Utils.parseOfonoDate(dateStr);
+        if (date == null) {
+            Rlog.e(TAG, "error parsing SMS date "+dateStr);
+            date = new Date();
+        }
+
+        final Object msg = createReceivedMessage(sender, content, date, getProp(info, "Immediate", false));
+        mMainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                mGsmSmsRegistrant.notifyResult(msg);
+            }
+        });
+    }
+
+    public void handle(MessageManager.IncomingMessage s) {
+        handleIncomingMessage(s.message, s.info);
+    }
+
+    public void handle(MessageManager.ImmediateMessage s) {
+        s.info.put("Immediate", new Variant<>(true));
+        handleIncomingMessage(s.message, s.info);
     }
 
     @Override
@@ -1459,9 +1500,53 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
             smscPDUStr = "00"; // see PduParser; means no smsc
         }
         try {
-            return SmsMessage.createFromPdu(IccUtils.hexStringToBytes(smscPDUStr + pduStr));
+            return SmsMessage.createFromPdu(IccUtils.hexStringToBytes(smscPDUStr + pduStr), SmsConstants.FORMAT_3GPP);
         } catch (Throwable t) {
             // SmsMessage should have logged information about the error
+            return null;
+        }
+    }
+
+    private SmsMessage createReceivedMessage(String sender, String contentText, Date date, boolean immediate) {
+        try {
+            // see SmsMessage#parsePdu
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            os.write(new byte[] {
+                    0x00, // null sc address
+                    0x00, // deliver type. no reply path or user header
+            });
+            byte[] bcdSender = PhoneNumberUtils.networkPortionToCalledPartyBCD(sender);
+            os.write((bcdSender.length - 1) * 2); // BCD digit count, excluding TOA.
+            os.write(bcdSender);
+
+            // build a submit pdu so it will encode the message for us
+            // it turned out to not be as convenient as I hoped, but probably still better than
+            // writing/copying here
+            com.android.internal.telephony.gsm.SmsMessage.SubmitPdu submitPduOb =
+                    com.android.internal.telephony.gsm.SmsMessage.getSubmitPdu(null, "0", contentText, false);
+            byte[] submitPdu = new byte[1 + submitPduOb.encodedMessage.length];
+            submitPdu[0] = 0x00; // null sc adddr, so it will parse below
+            System.arraycopy(submitPduOb.encodedMessage, 0, submitPdu, 1, submitPduOb.encodedMessage.length);
+            com.android.internal.telephony.gsm.SmsMessage msg =
+                    com.android.internal.telephony.gsm.SmsMessage.createFromPdu(submitPdu);
+            if (msg == null) throw new RuntimeException("unable to parse submit pdu to create deliver pdu");
+
+            // finish writing the deliver
+            int dataCodingScheme = callPrivateMethod(msg, Integer.class, "getDataCodingScheme");
+            os.write(new byte[]{
+                0x00, // protocol identifier
+                (byte) (dataCodingScheme | (immediate ? 0x10 : 0))
+            });
+            os.write(getScTimestamp(date));
+            byte[] payload = msg.getUserData();
+            os.write(AospUtils.getEncodingType(dataCodingScheme) != SmsConstants.ENCODING_7BIT ?
+                    payload.length : // octet length
+                    // septet length - we can't tell how many meaningful septets there are, but
+                    // I think in the case of 7bit it will always be the length of the string
+                    contentText.length());
+            os.write(payload);
+            return SmsMessage.createFromPdu(os.toByteArray(), SmsConstants.FORMAT_3GPP);
+        } catch (Throwable t) {
             return null;
         }
     }
@@ -1488,6 +1573,26 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         } else {
             return String.valueOf(o);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T callPrivateMethod(Object o, Class<T> returnClass, String methodName)
+            throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+
+        Method m = o.getClass().getDeclaredMethod(methodName);
+        m.setAccessible(true);
+        return (T) m.invoke(o);
+    }
+
+    private static byte[] getScTimestamp(Date d) {
+        // opposite of SmsMessage#getSCTimestampMillis()
+        // value is BCD nibble-swapped ymdhmszz (z = zone)
+        SimpleDateFormat fmt = new SimpleDateFormat("ssmmHHddMMyy", Locale.US);
+        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+        StringBuilder b = new StringBuilder(fmt.format(d));
+        b.reverse();
+        b.append("00"); // TODO preserve real tz?
+        return IccUtils.hexStringToBytes(b.toString());
     }
 
 }

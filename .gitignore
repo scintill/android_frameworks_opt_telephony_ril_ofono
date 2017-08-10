@@ -8,3 +8,6 @@ lib/java/dbus/Manifest
 lib/java/dbus/bin
 lib/java/dbus/classes
 lib/java/dbus/*.jar
+
+lib/java/android
+cyanogenmod

@@ -1,0 +1,12 @@
+#!/bin/bash
+set -x
+BASE=$(realpath $(dirname $0))
+
+mount -t overlay overlay -o ro -olowerdir=\
+$BASE/cyanogenmod/12/frameworks/base/core/java:\
+$BASE/cyanogenmod/12/frameworks/base/telephony/java:\
+$BASE/cyanogenmod/12/frameworks/opt/telephony/src/java:\
+$BASE/cyanogenmod/12/libcore/luni/src/main/java:\
+$BASE/cyanogenmod/12/packages/services/Telephony/src\
+ \
+$BASE/lib/java/android/

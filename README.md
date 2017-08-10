@@ -36,6 +36,9 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 * dexopt/proguard? - see notes in Android.mk
 * make sure socket operations on the main thread trigger strict mode exceptions (are Unix sockets a loophole?)
 * make dbus exceptions be checked exceptions, so the compiler will find them and I have to handle them
+* SMS send/receive - current implementation is limited when it comes to things like long messages. We could
+concatenate/split PDUs in the RIL to map on to Ofono's nice API, but we will not be able to implement a few things
+that raw PDUs can do. And duplicating the work is ugly anyway, so I think I will just patch Ofono with raw PDU APIs.
 
 # License
 
