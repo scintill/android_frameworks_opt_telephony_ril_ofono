@@ -43,11 +43,9 @@ import com.android.internal.telephony.SmsResponse;
 import com.android.internal.telephony.UUSInfo;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
 import com.android.internal.telephony.gsm.SmsBroadcastConfigInfo;
-import com.android.internal.telephony.uicc.AdnRecord;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
 import com.android.internal.telephony.uicc.IccCardStatus.CardState;
-import com.android.internal.telephony.uicc.IccConstants;
 import com.android.internal.telephony.uicc.IccIoResult;
 import com.android.internal.telephony.uicc.IccUtils;
 
@@ -64,6 +62,7 @@ import org.freedesktop.dbus.exceptions.DBusException;
 import org.freedesktop.dbus.exceptions.DBusExecutionException;
 import org.ofono.Manager;
 import org.ofono.MessageManager;
+import org.ofono.MessageWaiting;
 import org.ofono.Modem;
 import org.ofono.NetworkRegistration;
 import org.ofono.SimManager;
@@ -122,8 +121,13 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     private final Map<String, Variant> mNetRegProps = new HashMap<>();
     private SimManager mSim;
     private final Map<String, Variant> mSimProps = new HashMap<>();
+    private MessageWaiting mMsgWaiting;
+    private final Map<String, Variant> mMsgWaitingProps = new HashMap<>();
+
     private MessageManager mMessenger;
     private VoiceCallManager mCallManager;
+
+    private final SimFiles mSimFiles = new SimFiles(mSimProps, mMsgWaitingProps);
 
     public RilOfono(Context context, int preferredNetworkType, int cdmaSubscription, Integer instanceId) {
         super(context);
@@ -147,6 +151,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mNetReg = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, NetworkRegistration.class);
                     mMessenger = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageManager.class);
                     mCallManager = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, VoiceCallManager.class);
+                    mMsgWaiting = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageWaiting.class);
                     DBusSigHandler sigHandler = new DbusSignalHandler();
                     mDbus.addSigHandler(Manager.ModemAdded.class, sigHandler);
                     mDbus.addSigHandler(Manager.ModemRemoved.class, sigHandler);
@@ -156,6 +161,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mDbus.addSigHandler(org.ofono.Message.PropertyChanged.class, sigHandler);
                     mDbus.addSigHandler(MessageManager.IncomingMessage.class, sigHandler);
                     mDbus.addSigHandler(MessageManager.ImmediateMessage.class, sigHandler);
+                    mDbus.addSigHandler(MessageWaiting.PropertyChanged.class, sigHandler);
                     mDbus.addSigHandler(VoiceCallManager.CallAdded.class, sigHandler);
                     mDbus.addSigHandler(VoiceCall.PropertyChanged.class, sigHandler);
                     mDbus.addSigHandler(VoiceCallManager.CallRemoved.class, sigHandler);
@@ -792,43 +798,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message response) {
-        String humanPath = path + "/" + Integer.toHexString(fileid);
-        // note: could be sensitive data
-        //Rlog.d(TAG, "iccIO " + command + " " + humanPath + " " + p1 + " " + p2 + " " + p3 + " " + data + " " + pin2 + " " + aid);
-
-        // note: responses could be sensitive data
-        final int COMMAND_GET_RESPONSE = 0xc0;
-        final int COMMAND_READ_BINARY = 0xb0;
-        final int COMMAND_READ_RECORD = 0xb2;
-        if (command == COMMAND_GET_RESPONSE) {
-            SimFile file = getSimFile(path, fileid);
-            if (file != null) {
-                respondOk("iccIOForApp GetResponse " + humanPath, response, new IccIoResult(0x90, 0x00, file.getResponse()), true);
-            } else {
-                respondOk("iccIOForApp GetResponse " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]), true);
-            }
-        } else if (command == COMMAND_READ_BINARY) {
-            int offset = p1 << 8 + p2;
-            int length = p3 & 0xff;
-            SimFile file = getSimFile(path, fileid);
-            if (file != null) {
-                byte[] filePiece = new byte[length];
-                System.arraycopy(file.mData, offset, filePiece, 0, length);
-                respondOk("iccIOForApp ReadBinary " + humanPath, response, new IccIoResult(0x90, 0x00, filePiece), true);
-            } else {
-                respondOk("iccIOForApp ReadBinary " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]), true);
-            }
-        } else if (command == COMMAND_READ_RECORD) {
-            // TODO ignoring some semantics of READ_RECORD...
-            SimFile file = getSimFile(path, fileid);
-            if (file != null) {
-                respondOk("iccIOForApp ReadRecord " + humanPath, response, new IccIoResult(0x90, 0x00, file.mData), true);
-            } else {
-                respondOk("iccIOForApp ReadRecord " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]), true);
-            }
-        } else {
-            respondExc("iccIOForApp "+command+" "+humanPath, response, REQUEST_NOT_SUPPORTED, null, true);
-        }
+        mSimFiles.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, response);
     }
 
     @Override
@@ -1246,7 +1216,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         onModemChange(true);
     }
 
-    // simple property-mirroring signal handlers should delegate to handlePropChange()
+    // property-mirroring signal handlers should delegate to handlePropChange(Map<>...)
     public void handle(Modem.PropertyChanged s) {
         handlePropChange(mModem, s.name, s.value);
     }
@@ -1254,6 +1224,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     public void handle(SimManager.PropertyChanged s) {
         handlePropChange(mSim, s.name, s.value);
     }
+    public void handle(MessageWaiting.PropertyChanged s) { handlePropChange(mMsgWaiting, s.name, s.value); }
 
     public void handle(org.ofono.Message.PropertyChanged s) {
         if (s.name.equals("State")) {
@@ -1306,6 +1277,10 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         postDebounced(mMainHandler, mFnNotifySimChanged, 350);
     }
 
+    private void handlePropChange(MessageWaiting msgWaiting, String name, Variant value) {
+        handlePropChange(mMsgWaitingProps, MessageWaiting.class.getSimpleName(), name, value);
+    }
+
     private void handlePropChange(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
         // some of these are sensitive enough they shouldn't be logged
         Rlog.d(TAG, thingChangingDebugRef + " propchange: " + name + "=" + value);
@@ -1339,6 +1314,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         initProps(mModemProps, Modem.class, mModem);
         initProps(mNetRegProps, NetworkRegistration.class, mNetReg);
         initProps(mSimProps, SimManager.class, mSim);
+        initProps(mMsgWaitingProps, MessageWaiting.class, mMsgWaiting);
     }
 
     private void initProps(Map<String, Variant> propsToInit, Class<?extends DBusInterface> sourceObIface, DBusInterface sourceOb) {
@@ -1386,7 +1362,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         return props.get(key) != null ? (T) props.get(key).getValue() : defaultValue;
     }
 
-    private <T> T[] getProp(Map<String, Variant> props, String key, @NonNull T[] defaultValue) {
+    /*package*/ static <T> T[] getProp(Map<String, Variant> props, String key, @NonNull T[] defaultValue) {
         if (props.get(key) != null) {
             //noinspection unchecked
             List<T> list = (List<T>)(props.get(key).getValue());
@@ -1411,7 +1387,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         return (Long) value;
     }
 
-    private String getProp(Map<String, Variant> props, String key, String defaultValue) {
+    /*package*/ static String getProp(Map<String, Variant> props, String key, String defaultValue) {
         return props.get(key) != null ? props.get(key).getValue().toString() : defaultValue;
     }
 
@@ -1489,11 +1465,11 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         }
     }
 
-    private void respondOk(String caller, Message response, Object o) {
+    /*package*/ static void respondOk(String caller, Message response, Object o) {
         respondOk(caller, response, o, false);
     }
 
-    private void respondOk(String caller, Message response, Object o, boolean quiet) {
+    /*package*/ static void respondOk(String caller, Message response, Object o, boolean quiet) {
         // TODO at least some of these are sensitive enough they shouldn't be logged
         if (!quiet) {
             Rlog.d(TAG, "respondOk from " + caller + ": " + toDebugString(o));
@@ -1508,7 +1484,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         respondExc(caller, response, err, o, false);
     }
 
-    private void respondExc(String caller, Message response, CommandException.Error err, Object o, boolean quiet) {
+    /*package*/ static void respondExc(String caller, Message response, CommandException.Error err, Object o, boolean quiet) {
         if (!quiet) {
             Rlog.d(TAG, "respondExc from "+caller+": "+err+" "+o);
         }
@@ -1562,52 +1538,6 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         OfonoNetworkTechnology(int serviceStateInt) {
             this.serviceStateInt = serviceStateInt;
         }
-    }
-
-    class SimFile {
-        public byte mType;
-        public byte mResponseDataStructure;
-        public byte[] mData;
-        public byte[] getResponse() {
-            // see IccFileHandler for offsets
-            return new byte[] {
-                    0x00, 0x00, // rfu
-                    (byte)((mData.length >> 8) & 0xff), (byte)(mData.length & 0xff),
-                    0x00, 0x00, // file id
-                    mType,
-                    0x00, // rfu
-                    0x00, 0x00, 0x00, // access condition
-                    0x00, // status
-                    0x00, // length
-                    mResponseDataStructure, // structure
-                    (byte) mData.length, // record length
-            };
-        }
-    }
-
-    private SimFile getSimFile(String path, int fileid) {
-        SimFile file = new SimFile();
-        final int TYPE_EF = 4;
-        final int EF_TYPE_TRANSPARENT = 0;
-        final int EF_TYPE_LINEAR_FIXED = 1;
-        if (path.equals(IccConstants.MF_SIM) && fileid == IccConstants.EF_ICCID) {
-            String iccid = getProp(mSimProps, "CardIdentifier", (String)null);
-            if (!TextUtils.isEmpty(iccid)) {
-                file.mType = TYPE_EF;
-                file.mResponseDataStructure = EF_TYPE_TRANSPARENT;
-                file.mData = stringToBcd(iccid);
-            }
-        } else if (path.equals(IccConstants.MF_SIM + IccConstants.DF_TELECOM) && fileid == IccConstants.EF_MSISDN) {
-            String[] numbers = getProp(mSimProps, "SubscriberNumbers", new String[0]);
-            if (numbers.length > 0) {
-                file.mType = TYPE_EF;
-                file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
-                file.mData = new AdnRecord(null, numbers[0]).buildAdnString(14 /*AdnRecord.FOOTER_SIZE*/);
-            }
-        } else {
-            return null;
-        }
-        return file;
     }
 
     private SmsMessage parseSmsPduStrs(String smscPDUStr, String pduStr) {
@@ -1666,20 +1596,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         }
     }
 
-    // opposite of IccUtils#bcdToString
-    private byte[] stringToBcd(String str) {
-        byte[] ret = new byte[(str.length() / 2) + 1];
-        for (int i = 0, j = 0; i < ret.length; i++) {
-            ret[i] = (byte) (bcdNibble(str, j++) | (bcdNibble(str, j++) << 4));
-        }
-        return ret;
-    }
-
-    private byte bcdNibble(String s, int i) {
-        return i < s.length() ? (byte)(s.charAt(i) - '0') : 0xf;
-    }
-
-    public CharSequence toDebugString(Object o) {
+    public static CharSequence toDebugString(Object o) {
         if (o instanceof byte[]) {
             return IccUtils.bytesToHexString((byte[])o);
         } else if (o instanceof IccIoResult) {

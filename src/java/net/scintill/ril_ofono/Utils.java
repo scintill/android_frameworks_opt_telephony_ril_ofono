@@ -65,4 +65,18 @@ public class Utils {
         }
     }
 
+    // opposite of IccUtils#bcdToString
+    /*package*/ static byte[] stringToBcd(String str) {
+        byte[] ret = new byte[(str.length() / 2) + 1];
+        for (int i = 0, j = 0; i < ret.length; i++) {
+            ret[i] = (byte) (bcdNibble(str, j++) | (bcdNibble(str, j++) << 4));
+        }
+        return ret;
+    }
+
+    /*package*/ static byte bcdNibble(String s, int i) {
+        return i < s.length() ? (byte)(s.charAt(i) - '0') : 0xf;
+    }
+
+
 }
