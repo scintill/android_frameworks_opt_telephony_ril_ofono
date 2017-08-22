@@ -19,11 +19,17 @@
 
 package net.scintill.ril_ofono;
 
+import android.telephony.Rlog;
+
+import com.android.internal.telephony.DriverCall;
+
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class Utils {
+
+    private static final String TAG = "OfonoUtils";
 
     static final SimpleDateFormat FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZZZ");
 
@@ -36,6 +42,26 @@ public class Utils {
             return FORMAT.parse(s);
         } catch (ParseException e) {
             return null;
+        }
+    }
+
+    /*package*/ static DriverCall.State parseOfonoCallState(String s) {
+        switch(s) {
+            case "active":
+                return DriverCall.State.ACTIVE;
+            case "held":
+                return DriverCall.State.HOLDING;
+            case "dialing":
+                return DriverCall.State.DIALING;
+            case "alerting":
+                return DriverCall.State.ALERTING;
+            case "incoming":
+                return DriverCall.State.INCOMING;
+            case "waiting":
+                return DriverCall.State.WAITING;
+            default:
+                Rlog.e(TAG, "Unknown/unusable state for call: "+s+"; ignoring");
+                return null;
         }
     }
 

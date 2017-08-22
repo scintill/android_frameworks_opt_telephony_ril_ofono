@@ -35,6 +35,8 @@ import android.text.TextUtils;
 import com.android.internal.telephony.BaseCommands;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
+import com.android.internal.telephony.DriverCall;
+import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.SmsConstants;
 import com.android.internal.telephony.SmsResponse;
@@ -66,17 +68,22 @@ import org.ofono.Modem;
 import org.ofono.NetworkRegistration;
 import org.ofono.SimManager;
 import org.ofono.Struct1;
+import org.ofono.VoiceCall;
+import org.ofono.VoiceCallManager;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_EDGE;
@@ -87,6 +94,8 @@ import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UMTS;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandException.Error.INVALID_PARAMETER;
+import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
+import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 
 public class RilOfono extends BaseCommands implements CommandsInterface {
@@ -114,6 +123,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     private SimManager mSim;
     private final Map<String, Variant> mSimProps = new HashMap<>();
     private MessageManager mMessenger;
+    private VoiceCallManager mCallManager;
 
     public RilOfono(Context context, int preferredNetworkType, int cdmaSubscription, Integer instanceId) {
         super(context);
@@ -136,6 +146,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mSim = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, SimManager.class);
                     mNetReg = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, NetworkRegistration.class);
                     mMessenger = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageManager.class);
+                    mCallManager = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, VoiceCallManager.class);
                     DBusSigHandler sigHandler = new DbusSignalHandler();
                     mDbus.addSigHandler(Manager.ModemAdded.class, sigHandler);
                     mDbus.addSigHandler(Manager.ModemRemoved.class, sigHandler);
@@ -145,6 +156,9 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mDbus.addSigHandler(org.ofono.Message.PropertyChanged.class, sigHandler);
                     mDbus.addSigHandler(MessageManager.IncomingMessage.class, sigHandler);
                     mDbus.addSigHandler(MessageManager.ImmediateMessage.class, sigHandler);
+                    mDbus.addSigHandler(VoiceCallManager.CallAdded.class, sigHandler);
+                    mDbus.addSigHandler(VoiceCall.PropertyChanged.class, sigHandler);
+                    mDbus.addSigHandler(VoiceCallManager.CallRemoved.class, sigHandler);
                     initProps();
                     onModemChange(false); // initialize starting state
                 } catch (DBusException e) {
@@ -239,8 +253,84 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void getCurrentCalls(Message result) {
-        // the call tracker makes a lot of spam if we log this
-        respondExc("getCurrentCalls", result, REQUEST_NOT_SUPPORTED, null, true);
+        try {
+            List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
+            Rlog.d(TAG, "mCallsProps= "+mCallsProps); // TODO sensitive info
+            for (Map<String, Variant> callProps : mCallsProps.values()) {
+                DriverCall call = new DriverCall();
+                call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
+                call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
+                if (call.state == null || call.index == -1) {
+                    Rlog.e(TAG, "Skipping unknown call: "+callProps); // TODO could be sensitive
+                    continue; // <--- skip unknown call
+                }
+
+                String lineId = getProp(callProps, "LineIdentification", "");
+                if (lineId.length() == 0 || lineId.equals("withheld")) lineId = null;
+                call.TOA = PhoneNumberUtils.toaFromString(lineId);
+                call.isMpty = false;
+                call.isMT = !getProp(callProps, PROPNAME_CALL_MOBORIG, false);
+                call.als = 0; // SimulatedGsmCallState
+                call.isVoice = true;
+                call.isVoicePrivacy = false; // oFono doesn't tell us
+                call.number = lineId;
+                call.numberPresentation = PhoneConstants.PRESENTATION_UNKNOWN;
+                call.name = getProp(callProps, "Name", "");
+                call.namePresentation = PhoneConstants.PRESENTATION_UNKNOWN;
+                // TODO check if + is shown in number
+                calls.add(call);
+            }
+            Collections.sort(calls); // not sure why, but original RIL does
+            respondOk("getCurrentCalls", result, calls);
+        } catch (Throwable t) {
+            Rlog.e(TAG, "Error getting calls", t); // TODO potentially sensitive info
+            respondExc("getCurrentCalls", result, GENERIC_FAILURE, null);
+        }
+    }
+
+    private final Map<String, Map<String, Variant>> mCallsProps = new HashMap<>();
+    private ConcurrentLinkedQueue<Integer> mAvailableCallIndices; {
+        mAvailableCallIndices = new ConcurrentLinkedQueue<>();
+        // GsmCallTracker.MAX_CONNECTIONS = 7, CDMA allows 8
+        for (int i = 1; i <= 7; i++) mAvailableCallIndices.add(i);
+    }
+
+    private static final String PROPNAME_CALL_INDEX = "_RilOfono_CallIndex";
+    private static final String PROPNAME_CALL_MOBORIG = "_RilOfono_CallMobileOriginating";
+
+    public void handle(VoiceCallManager.CallAdded s) {
+        String callPath = s.path.getPath();
+        Rlog.d(TAG, "handle CallAdded "+ callPath);
+        Map<String, Variant> newCallProps = new HashMap<>(s.properties);
+        newCallProps.put(PROPNAME_CALL_INDEX, new Variant<>(mAvailableCallIndices.remove()));
+        putOrMerge2dProps(mCallsProps, callPath, newCallProps);
+
+        mMainHandler.post(mFnNotifyCallStateChanged);
+    }
+
+    public void handle(VoiceCall.PropertyChanged s) {
+        handle2dPropChange(mCallsProps, s.getPath(), VoiceCall.class, s.name, s.value);
+        postDebounced(mMainHandler, mFnNotifyCallStateChanged, 200);
+    }
+
+    public void handle(VoiceCallManager.CallRemoved s) {
+        String callPath = s.path.getPath();
+        Rlog.d(TAG, "handle CallRemoved");
+        int callIndex = getProp(mCallsProps.get(callPath), PROPNAME_CALL_INDEX, -1);
+        mCallsProps.remove(callPath);
+        if (callIndex != -1) mAvailableCallIndices.add(callIndex);
+        mMainHandler.post(mFnNotifyCallStateChanged);
+    }
+
+    private String getDbusPathForCallIndex(int i) {
+        synchronized (mCallsProps) {
+            for (Map.Entry<String, Map<String, Variant>> entry : mCallsProps.entrySet()) {
+                if (getProp(entry.getValue(), PROPNAME_CALL_INDEX, -1) == i) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return null;
     }
 
     @Override
@@ -254,51 +344,134 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
-    public void dial(String address, int clirMode, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public void dial(final String address, int clirMode, final Message result) {
+        final String clirModeStr;
+        switch (clirMode) {
+            case CLIR_DEFAULT: clirModeStr = "default"; break;
+            case CLIR_INVOCATION: clirModeStr = "enabled"; break;
+            case CLIR_SUPPRESSION: clirModeStr = "disabled"; break;
+            default:
+                throw new IllegalArgumentException("unknown CLIR constant "+clirMode);
+        }
+
+        mDbusHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Path dialedCallPath = mCallManager.Dial(address, clirModeStr);
+                    Map<String, Variant> dialedCallProps = new HashMap<>();
+                    dialedCallProps.put(PROPNAME_CALL_MOBORIG, new Variant<>(true));
+                    putOrMerge2dProps(mCallsProps, dialedCallPath.getPath(), dialedCallProps);
+                    Rlog.d(TAG, "dialed "+dialedCallPath.getPath());
+                    respondOk("dial", result, null);
+                } catch (Throwable t) {
+                    Rlog.e(TAG, "Error dialing", t); // TODO possibly sensitive information
+                    respondExc("dial", result, GENERIC_FAILURE, null);
+                }
+            }
+        });
     }
 
     @Override
     public void dial(String address, int clirMode, UUSInfo uusInfo, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
-    }
-
-    @Override
-    public void getIMSI(Message result) {
-        getIMSIForApp(null, result);
-    }
-
-    @Override
-    public void getIMSIForApp(String aid, Message result) {
-        // TODO GSM-specific?
-        String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
-        if (imsi != null) {
-            respondOk("getIMSIForApp", result, imsi, true);
+        if (uusInfo != null) {
+            respondExc(getCallerMethodName(), result, MODE_NOT_SUPPORTED, null);
         } else {
-            respondExc("getIMSIForApp", result, GENERIC_FAILURE, null);
+            dial(address, clirMode, result);
         }
     }
 
     @Override
-    public void getIMEI(Message result) {
-        // TODO GSM-specific?
-        respondOk("getIMEI", result, getProp(mModemProps, "Serial", ""), true);
+    public void hangupConnection(final int gsmIndex, final Message result) {
+        mDbusHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String callPath = getDbusPathForCallIndex(gsmIndex);
+                    if (callPath == null) {
+                        respondExc("hangupConnection", result, NO_SUCH_ELEMENT, null);
+                        return;
+                    }
+                    VoiceCall call = mDbus.getRemoteObject(OFONO_BUS_NAME, callPath, VoiceCall.class);
+                    call.Hangup();
+                    respondOk("hangupConnection", result, null);
+                } catch (Throwable t) {
+                    Rlog.e(TAG, "Error hanging up", t); // TODO could be sensitive info
+                    respondExc("hangupConnection", result, GENERIC_FAILURE, null);
+                }
+            }
+        });
     }
 
     @Override
-    public void getIMEISV(Message result) {
-        // TODO GSM-specific?
-        respondOk("getIMEISV", result, getProp(mModemProps, "SoftwareVersionNumber", ""), true);
+    public void hangupWaitingOrBackground(final Message result) {
+        mDbusHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                boolean oneSucceeded = false, oneExcepted = false;
+                for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
+                    String callPath = callPropsEntry.getKey();
+                    Map<String, Variant> callProps = callPropsEntry.getValue();
+                    try {
+                        DriverCall.State callState = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
+                        // TODO which states should be hungup? should we only hang up one?
+                        if (callState != null) {
+                            switch (callState) {
+                                case INCOMING:
+                                case HOLDING:
+                                case WAITING:
+                                    VoiceCall call = mDbus.getRemoteObject(OFONO_BUS_NAME, callPath, VoiceCall.class);
+                                    call.Hangup();
+                                    oneSucceeded = true;
+                                    break;
+                                default:
+                                    // skip
+                            }
+                        }
+                    } catch (Throwable t) {
+                        oneExcepted = true;
+                        Rlog.e(TAG, "Error checking/hangingup call", t); // TODO could be sensitive
+                    }
+                }
+
+                if (oneSucceeded) {
+                    respondOk("hangupWaitingOrBackground", result, null);
+                } else if (oneExcepted) {
+                    respondExc("hangupWaitingOrBackground", result, GENERIC_FAILURE, null);
+                } else {
+                    respondExc("hangupWaitingOrBackground", result, NO_SUCH_ELEMENT, null);
+                }
+            }
+        });
     }
 
     @Override
-    public void hangupConnection(int gsmIndex, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public void acceptCall(final Message result) {
+        mDbusHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
+                        String callPath = callPropsEntry.getKey();
+                        Map<String, Variant> callProps = callPropsEntry.getValue();
+                        if (Utils.parseOfonoCallState(getProp(callProps, "State", "")) == DriverCall.State.INCOMING) {
+                            VoiceCall call = mDbus.getRemoteObject(OFONO_BUS_NAME, callPath, VoiceCall.class);
+                            call.Answer();
+                            respondOk("acceptCall", result, null);
+                        }
+                    }
+                } catch (Throwable t) {
+                    Rlog.e(TAG, "Error accepting call", t); // TODO sensitive
+                    respondExc("acceptCall", result, GENERIC_FAILURE, null);
+                }
+            }
+        });
     }
 
     @Override
-    public void hangupWaitingOrBackground(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public void rejectCall(Message result) {
+        // TODO RIL.java sends UDUB, which may not be the same as what we're indirectly asking oFono to do here
+        hangupWaitingOrBackground(result);
     }
 
     @Override
@@ -328,16 +501,6 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void separateConnection(int gsmIndex, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
-    }
-
-    @Override
-    public void acceptCall(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
-    }
-
-    @Override
-    public void rejectCall(Message result) {
         respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
@@ -372,6 +535,35 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
+    public void getIMSI(Message result) {
+        getIMSIForApp(null, result);
+    }
+
+    @Override
+    public void getIMSIForApp(String aid, Message result) {
+        // TODO GSM-specific?
+        String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
+        if (imsi != null) {
+            respondOk("getIMSIForApp", result, imsi, true);
+        } else {
+            respondExc("getIMSIForApp", result, GENERIC_FAILURE, null);
+        }
+    }
+
+    @Override
+    public void getIMEI(Message result) {
+        // TODO GSM-specific?
+        respondOk("getIMEI", result, getProp(mModemProps, "Serial", ""), true);
+    }
+
+    @Override
+    public void getIMEISV(Message result) {
+        // TODO GSM-specific?
+        respondOk("getIMEISV", result, getProp(mModemProps, "SoftwareVersionNumber", ""), true);
+    }
+
+
+    @Override
     public void getSignalStrength(Message response) {
         // TODO I can't seem to find this on the ofono bus, but supposedly it's supported
         // make up a low strength
@@ -399,7 +591,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @SuppressWarnings("FieldCanBeLocal")
-    private final String DEBUG_DECORATOR = "🌠"; // make it obvious we're running this RIL
+    private final String STAR_EMOJI = "🌠"; // make it obvious we're running this RIL
 
     @Override
     public void getOperator(Message response) {
@@ -407,7 +599,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         String name = getProp(mNetRegProps, "Name", "");
         String mcc = getProp(mNetRegProps, "MobileCountryCode", "");
         String mnc = getProp(mNetRegProps, "MobileNetworkCode", "");
-        name = DEBUG_DECORATOR + name + DEBUG_DECORATOR;
+        name = STAR_EMOJI + name + STAR_EMOJI;
         if (registered && mcc.length() > 0 && mnc.length() > 0 && name.length() > 0) {
             respondOk("getOperator", response, new String[] {
                     name, name, /* TODO does Ofono offer distinct short and long names? */
@@ -1058,11 +1250,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     public void handle(Modem.PropertyChanged s) {
         handlePropChange(mModem, s.name, s.value);
     }
-
-    public void handle(NetworkRegistration.PropertyChanged s) {
-        handlePropChange(mNetReg, s.name, s.value);
-    }
-
+    public void handle(NetworkRegistration.PropertyChanged s) { handlePropChange(mNetReg, s.name, s.value); }
     public void handle(SimManager.PropertyChanged s) {
         handlePropChange(mSim, s.name, s.value);
     }
@@ -1078,7 +1266,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     // first parameter is just to select the method by type
     private void handlePropChange(Modem modem, String name, Variant value) {
-        handlePropChange(mModemProps, Modem.class, name, value);
+        handlePropChange(mModemProps, Modem.class.getSimpleName(), name, value);
         if (name.equals("Online")) {
             final boolean online = (Boolean) value.getValue();
             mMainHandler.post(new Runnable() {
@@ -1087,11 +1275,11 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
                 }
             });
-        };
+        }
     }
 
     private void handlePropChange(NetworkRegistration netReg, String name, Variant value) {
-        handlePropChange(mNetRegProps, NetworkRegistration.class, name, value);
+        handlePropChange(mNetRegProps, NetworkRegistration.class.getSimpleName(), name, value);
         if (mFnNotifyNetworkChanged == null) mFnNotifyNetworkChanged = new DebouncedRunnable() {
             @Override
             public void run() {
@@ -1106,7 +1294,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     private void handlePropChange(SimManager sim, String name, Variant value) {
-        handlePropChange(mSimProps, SimManager.class, name, value);
+        handlePropChange(mSimProps, SimManager.class.getSimpleName(), name, value);
         // TODO check if something that we report actually changed?
         if (mFnNotifySimChanged == null) mFnNotifySimChanged = new DebouncedRunnable() {
             @Override
@@ -1118,12 +1306,32 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         postDebounced(mMainHandler, mFnNotifySimChanged, 350);
     }
 
-    private void handlePropChange(Map<String, Variant> propsToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant value) {
+    private void handlePropChange(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
         // some of these are sensitive enough they shouldn't be logged
-        //Rlog.d(TAG, dbusObIface.getSimpleName() + " propchange: " + name + "=" + value);
+        Rlog.d(TAG, thingChangingDebugRef + " propchange: " + name + "=" + value);
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToUpdate) {
             propsToUpdate.put(name, value);
+        }
+    }
+
+    private void handle2dPropChange(Map<String, Map<String, Variant>> propsToUpdateRoot, String keyToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant value) {
+        Map<String, Variant> propsToUpdate = propsToUpdateRoot.get(keyToUpdate);
+        if (propsToUpdate == null) {
+            propsToUpdateRoot.put(keyToUpdate, propsToUpdate = new HashMap<>());
+        }
+        handlePropChange(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
+    }
+
+    private void putOrMerge2dProps(Map<String, Map<String, Variant>> rootProps, String key, Map<String, Variant> props) {
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (rootProps) {
+            if (!rootProps.containsKey(key)) {
+                rootProps.put(key, props);
+            } else {
+                // retain call origination properties
+                rootProps.get(key).putAll(props);
+            }
         }
     }
 
@@ -1233,6 +1441,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                 updateRilConnection(RIL_VERSION);
             }
         });
+        // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
     }
 
     private void logException(String m, Throwable t) {
@@ -1247,8 +1456,8 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     // TODO
-    // things I noticed BaseCommands overrides but has an empty implementation:
-    // getDataCallProfile(), onRadioAvailable(), getModemCapability(),
+    // things I noticed BaseCommands overrides but has an empty implementation we might need to override:
+    // getDataCallProfile(), getModemCapability(),
     // setUiccSubscription(), setDataProfile(), setDataAllowed(), requestShutdown(),
     // iccOpenLogicalChannel(), iccCloseLogicalChannel(), iccTransmitApduLogicalChannel(),
     // iccTransmitApduBasicChannel(), getAtr(), setLocalCallHold()
@@ -1318,6 +1527,12 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     abstract class DebouncedRunnable implements Runnable {}
     DebouncedRunnable mFnNotifyNetworkChanged;
     DebouncedRunnable mFnNotifySimChanged;
+    final DebouncedRunnable mFnNotifyCallStateChanged = new DebouncedRunnable() {
+        @Override
+        public void run() {
+            mCallStateRegistrants.notifyResult(null);
+        }
+    };
 
     private void postDebounced(Handler h, DebouncedRunnable r, long delayMillis) {
         //noinspection SynchronizationOnLocalVariableOrMethodParameter

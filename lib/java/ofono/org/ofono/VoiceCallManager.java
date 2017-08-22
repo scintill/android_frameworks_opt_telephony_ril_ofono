@@ -3,6 +3,7 @@ import java.util.List;
 import java.util.Map;
 import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSignal;
+import org.freedesktop.dbus.Path;
 import org.freedesktop.dbus.Variant;
 import org.freedesktop.dbus.exceptions.DBusException;
 public interface VoiceCallManager extends DBusInterface
@@ -38,27 +39,27 @@ public interface VoiceCallManager extends DBusInterface
    }
    public static class CallAdded extends DBusSignal
    {
-      public final DBusInterface path;
+      public final Path path;
       public final Map<String,Variant> properties;
-      public CallAdded(String path, DBusInterface path2, Map<String,Variant> properties) throws DBusException
+      public CallAdded(String vcmPath, Path path, Map<String,Variant> properties) throws DBusException
       {
-         super(path, path2, properties);
-         this.path = path2;
+         super(vcmPath, path, properties);
+         this.path = path;
          this.properties = properties;
       }
    }
    public static class CallRemoved extends DBusSignal
    {
-      public final DBusInterface path;
-      public CallRemoved(String path, DBusInterface path2) throws DBusException
+      public final Path path;
+      public CallRemoved(String vcmPath, Path path) throws DBusException
       {
-         super(path, path2);
-         this.path = path2;
+         super(vcmPath, path);
+         this.path = path;
       }
    }
 
   public Map<String,Variant> GetProperties();
-  public DBusInterface Dial(String number, String hide_callerid);
+  public Path Dial(String number, String hide_callerid);
   public void Transfer();
   public void SwapCalls();
   public void ReleaseAndAnswer();

@@ -1,12 +1,14 @@
 #!/bin/bash
 set -x
 BASE=$(realpath $(dirname $0))
+CMBASE=$(realpath $ANDROID_PRODUCT_OUT/../../../../)
 
-mount -t overlay overlay -o ro -olowerdir=\
-$BASE/cyanogenmod/12/frameworks/base/core/java:\
-$BASE/cyanogenmod/12/frameworks/base/telephony/java:\
-$BASE/cyanogenmod/12/frameworks/opt/telephony/src/java:\
-$BASE/cyanogenmod/12/libcore/luni/src/main/java:\
-$BASE/cyanogenmod/12/packages/services/Telephony/src\
+sudo mount -t overlay overlay -o ro -olowerdir=\
+$CMBASE/frameworks/base/core/java:\
+$CMBASE/frameworks/base/telephony/java:\
+$CMBASE/frameworks/base/telecomm/java:\
+$CMBASE/frameworks/opt/telephony/src/java:\
+$CMBASE/libcore/luni/src/main/java:\
+$CMBASE/packages/services/Telephony/src\
  \
 $BASE/lib/java/android/
