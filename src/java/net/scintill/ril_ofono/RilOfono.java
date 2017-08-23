@@ -100,8 +100,8 @@ import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_
 public class RilOfono extends BaseCommands implements CommandsInterface {
 
     private static final String TAG = "RilOfono";
-
     private static final int BUILD_NUMBER = 11;
+    /*package*/ static final boolean LOG_POTENTIALLY_SENSITIVE_INFO = true;
 
     /*
      * @TODO What does this mean to consumers? I picked 9 because it's less than 10, which is
@@ -261,13 +261,13 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     public void getCurrentCalls(Message result) {
         try {
             List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
-            Rlog.d(TAG, "mCallsProps= "+mCallsProps); // TODO sensitive info
+            Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
             for (Map<String, Variant> callProps : mCallsProps.values()) {
                 DriverCall call = new DriverCall();
                 call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
                 call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
                 if (call.state == null || call.index == -1) {
-                    Rlog.e(TAG, "Skipping unknown call: "+callProps); // TODO could be sensitive
+                    Rlog.e(TAG, "Skipping unknown call: "+privStr(callProps));
                     continue; // <--- skip unknown call
                 }
 
@@ -287,9 +287,9 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                 calls.add(call);
             }
             Collections.sort(calls); // not sure why, but original RIL does
-            respondOk("getCurrentCalls", result, calls);
+            respondOk("getCurrentCalls", result, new PrivResponseOb(calls));
         } catch (Throwable t) {
-            Rlog.e(TAG, "Error getting calls", t); // TODO potentially sensitive info
+            Rlog.e(TAG, "Error getting calls", privExc(t));
             respondExc("getCurrentCalls", result, GENERIC_FAILURE, null);
         }
     }
@@ -371,7 +371,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     Rlog.d(TAG, "dialed "+dialedCallPath.getPath());
                     respondOk("dial", result, null);
                 } catch (Throwable t) {
-                    Rlog.e(TAG, "Error dialing", t); // TODO possibly sensitive information
+                    Rlog.e(TAG, "Error dialing", privExc(t));
                     respondExc("dial", result, GENERIC_FAILURE, null);
                 }
             }
@@ -402,7 +402,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     call.Hangup();
                     respondOk("hangupConnection", result, null);
                 } catch (Throwable t) {
-                    Rlog.e(TAG, "Error hanging up", t); // TODO could be sensitive info
+                    Rlog.e(TAG, "Error hanging up", privExc(t));
                     respondExc("hangupConnection", result, GENERIC_FAILURE, null);
                 }
             }
@@ -436,7 +436,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                         }
                     } catch (Throwable t) {
                         oneExcepted = true;
-                        Rlog.e(TAG, "Error checking/hangingup call", t); // TODO could be sensitive
+                        Rlog.e(TAG, "Error checking/hangingup call", privExc(t));
                     }
                 }
 
@@ -467,7 +467,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                         }
                     }
                 } catch (Throwable t) {
-                    Rlog.e(TAG, "Error accepting call", t); // TODO sensitive
+                    Rlog.e(TAG, "Error accepting call", privExc(t));
                     respondExc("acceptCall", result, GENERIC_FAILURE, null);
                 }
             }
@@ -550,7 +550,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         // TODO GSM-specific?
         String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
         if (imsi != null) {
-            respondOk("getIMSIForApp", result, imsi, true);
+            respondOk("getIMSIForApp", result, new PrivResponseOb(imsi), true);
         } else {
             respondExc("getIMSIForApp", result, GENERIC_FAILURE, null);
         }
@@ -559,13 +559,13 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     @Override
     public void getIMEI(Message result) {
         // TODO GSM-specific?
-        respondOk("getIMEI", result, getProp(mModemProps, "Serial", ""), true);
+        respondOk("getIMEI", result, new PrivResponseOb(getProp(mModemProps, "Serial", "")), true);
     }
 
     @Override
     public void getIMEISV(Message result) {
         // TODO GSM-specific?
-        respondOk("getIMEISV", result, getProp(mModemProps, "SoftwareVersionNumber", ""), true);
+        respondOk("getIMEISV", result, new PrivResponseOb(getProp(mModemProps, "SoftwareVersionNumber", "")), true);
     }
 
 
@@ -583,11 +583,11 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         if (!state.isRegistered()) {
             respondOk("getVoiceRegistrationState", response, new String[]{ ""+state.ts27007Creg, "-1", "-1" });
         } else {
-            respondOk("getVoiceRegistrationState", response, new String[]{
+            respondOk("getVoiceRegistrationState", response, new PrivResponseOb(new String[]{
                     ""+state.ts27007Creg,
                     getProp(mNetRegProps, "LocationAreaCode", "-1"),
                     getProp(mNetRegProps, "CellId", "-1")
-            });
+            }));
         }
     }
 
@@ -701,8 +701,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         String dateStr = (String) info.get("SentTime").getValue();
         String sender = (String) info.get("Sender").getValue();
 
-        // note: sensitive data
-        //Rlog.d(TAG, "handleIncomingMessage "+sender+" "+dateStr+" "+content);
+        //Rlog.d(TAG, "handleIncomingMessage "+privStr(sender)+" "+dateStr+" "+privStr(content));
 
         Date date = Utils.parseOfonoDate(dateStr);
         if (date == null) {
@@ -1108,7 +1107,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
         cardStatus.mUniversalPinState = IccCardStatus.PinState.PINSTATE_DISABLED; // TODO
 
-        respondOk("getIccCardStatus", result, cardStatus, true);
+        respondOk("getIccCardStatus", result, new PrivResponseOb(cardStatus), true);
     }
 
     @Override
@@ -1282,8 +1281,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     private void handlePropChange(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
-        // some of these are sensitive enough they shouldn't be logged
-        Rlog.d(TAG, thingChangingDebugRef + " propchange: " + name + "=" + value);
+        Rlog.v(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToUpdate) {
             propsToUpdate.put(name, value);
@@ -1470,9 +1468,15 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     /*package*/ static void respondOk(String caller, Message response, Object o, boolean quiet) {
-        // TODO at least some of these are sensitive enough they shouldn't be logged
+        PrivResponseOb privResponseOb = null;
+        if (o instanceof PrivResponseOb) {
+            privResponseOb = (PrivResponseOb) o;
+            o = privResponseOb.o;
+        }
+
         if (!quiet) {
-            Rlog.d(TAG, "respondOk from " + caller + ": " + toDebugString(o));
+            CharSequence debugString = toDebugString(o, privResponseOb != null);
+            Rlog.d(TAG, "respondOk from " + caller + ": " + debugString);
         }
         if (response != null) {
             AsyncResult.forMessage(response, o, null);
@@ -1485,8 +1489,15 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     /*package*/ static void respondExc(String caller, Message response, CommandException.Error err, Object o, boolean quiet) {
+        PrivResponseOb privResponseOb = null;
+        if (o instanceof PrivResponseOb) {
+            privResponseOb = (PrivResponseOb) o;
+            o = privResponseOb.o;
+        }
+
         if (!quiet) {
-            Rlog.d(TAG, "respondExc from "+caller+": "+err+" "+o);
+            CharSequence debugString = toDebugString(o, privResponseOb != null);
+            Rlog.d(TAG, "respondExc from "+caller+": "+err+" "+debugString);
         }
         if (response != null) {
             // fill in generic exception if needed - at least GsmCallTracker
@@ -1597,6 +1608,15 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     public static CharSequence toDebugString(Object o) {
+        return toDebugString(o, false);
+    }
+
+    public static CharSequence toDebugString(Object o, boolean isSensitive) {
+        if (isSensitive) {
+            // we could potentially have type-specific partial dumping here
+            return privStr("");
+        }
+
         if (o instanceof byte[]) {
             return IccUtils.bytesToHexString((byte[])o);
         } else if (o instanceof IccIoResult) {
@@ -1614,6 +1634,17 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         } else {
             return String.valueOf(o);
         }
+    }
+
+    /*package*/ static String privStr(Object o) {
+        //noinspection ConstantConditions
+        return LOG_POTENTIALLY_SENSITIVE_INFO ? String.valueOf(o) : "XXXXX";
+    }
+
+    private static Throwable privExc(Throwable t) {
+        // TODO find a way to pass back the safe parts instead of null?
+        //noinspection ConstantConditions
+        return LOG_POTENTIALLY_SENSITIVE_INFO ? t : null;
     }
 
     @SuppressWarnings("unchecked")

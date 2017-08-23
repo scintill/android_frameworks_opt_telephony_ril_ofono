@@ -35,6 +35,8 @@ import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_
 
 /*package*/ class SimFiles {
 
+    private static final String TAG = "RilOfono";
+
     private final Map<String, Variant> mMsgWaitingProps;
     private Map<String, Variant> mSimProps;
 
@@ -58,25 +60,23 @@ import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_
     public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message response) {
         // TS 102 221
         String humanPath = path + "/" + Integer.toHexString(fileid);
-        // note: could be sensitive data
-        //Rlog.d(TAG, "iccIO " + command + " " + humanPath + " " + p1 + " " + p2 + " " + p3 + " " + data + " " + pin2 + " " + aid);
+        //Rlog.d(TAG, "iccIO " + command + " " + humanPath + " " + RilOfono.privStr(p1) + " " + RilOfono.privStr(p2) + " " + RilOfono.privStr(p3) + " " + RilOfono.privStr(data) + " " + RilOfono.privStr(pin2) + " " + aid);
 
         SimFile file = getSimFile(path, fileid);
         if (file == null) {
             RilOfono.respondOk("iccIOForApp " + humanPath, response, new IccIoResult(0x94, 0x00, new byte[0]), true);
         } else {
-            // note: responses could be sensitive data
             if (command == COMMAND_GET_RESPONSE) {
-                RilOfono.respondOk("iccIOForApp GetResponse " + humanPath, response, new IccIoResult(0x90, 0x00, file.getResponse()), true);
+                RilOfono.respondOk("iccIOForApp GetResponse " + humanPath, response, new PrivResponseOb(new IccIoResult(0x90, 0x00, file.getResponse())), true);
             } else if (command == COMMAND_READ_BINARY) {
                 int offset = p1 << 8 + p2;
                 int length = p3 & 0xff;
                 byte[] filePiece = new byte[length];
                 System.arraycopy(file.mData, offset, filePiece, 0, length);
-                RilOfono.respondOk("iccIOForApp ReadBinary " + humanPath, response, new IccIoResult(0x90, 0x00, filePiece), true);
+                RilOfono.respondOk("iccIOForApp ReadBinary " + humanPath, response, new PrivResponseOb(new IccIoResult(0x90, 0x00, filePiece)), true);
             } else if (command == COMMAND_READ_RECORD) {
                 // XXX ignoring some semantics of READ_RECORD...
-                RilOfono.respondOk("iccIOForApp ReadRecord " + humanPath, response, new IccIoResult(0x90, 0x00, file.mData), true);
+                RilOfono.respondOk("iccIOForApp ReadRecord " + humanPath, response, new PrivResponseOb(new IccIoResult(0x90, 0x00, file.mData)), true);
             } else {
                 RilOfono.respondExc("iccIOForApp " + command + " " + humanPath, response, REQUEST_NOT_SUPPORTED, null, true);
             }
