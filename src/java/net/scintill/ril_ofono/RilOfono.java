@@ -65,8 +65,10 @@ import org.ofono.MessageManager;
 import org.ofono.MessageWaiting;
 import org.ofono.Modem;
 import org.ofono.NetworkRegistration;
+import org.ofono.Pair;
 import org.ofono.SimManager;
 import org.ofono.Struct1;
+import org.ofono.SupplementaryServices;
 import org.ofono.VoiceCall;
 import org.ofono.VoiceCallManager;
 
@@ -123,6 +125,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     private final Map<String, Variant> mSimProps = new HashMap<>();
     private MessageWaiting mMsgWaiting;
     private final Map<String, Variant> mMsgWaitingProps = new HashMap<>();
+    private SupplementaryServices mSupplSvcs;
 
     private MessageManager mMessenger;
     private VoiceCallManager mCallManager;
@@ -152,6 +155,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     mMessenger = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageManager.class);
                     mCallManager = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, VoiceCallManager.class);
                     mMsgWaiting = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageWaiting.class);
+                    mSupplSvcs = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, SupplementaryServices.class);
                     DBusSigHandler sigHandler = new DbusSignalHandler();
                     mDbus.addSigHandler(Manager.ModemAdded.class, sigHandler);
                     mDbus.addSigHandler(Manager.ModemRemoved.class, sigHandler);
@@ -886,8 +890,26 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
-    public void sendUSSD(String ussdString, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public void sendUSSD(final String ussdString, final Message response) {
+        // TODO network-initiated USSD. apparently they're rare, and it doesn't look like the rild backend of oFono supports them
+        mDbusHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    // TODO do on a separate thread? oFono docs seem to imply this will block everything anyway
+                    Pair<String, Variant> ussdResponse = mSupplSvcs.Initiate(ussdString);
+                    respondOk("sendUSSD", response, null);
+                    if (!ussdResponse.a.equals("USSD")) {
+                        mUSSDRegistrant.notifyResult(new String[]{""+USSD_MODE_NOT_SUPPORTED, null});
+                    } else {
+                        mUSSDRegistrant.notifyResult(new String[]{""+USSD_MODE_NOTIFY, (String) ussdResponse.b.getValue()});
+                    }
+                } catch (Throwable t) {
+                    Rlog.e(TAG, "Error initiating USSD", privExc(t));
+                    respondExc("sendUSSD", response, GENERIC_FAILURE, null);
+                }
+            }
+        });
     }
 
     @Override
