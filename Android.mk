@@ -27,6 +27,8 @@ include $(CLEAR_VARS)
 	LOCAL_JAVA_LIBRARIES := telephony-common
 	LOCAL_CERTIFICATE := platform
 
+	LOCAL_JAVACFLAGS += -Xlint:deprecation -Xlint:unchecked
+
 	# TODO not sure what we *should* do with these, but for now it seems easier to get going by turning them off...
 	LOCAL_DEX_PREOPT := false
 	LOCAL_PROGUARD_ENABLED := disabled

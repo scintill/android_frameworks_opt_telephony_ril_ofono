@@ -20,88 +20,41 @@
 
 package net.scintill.ril_ofono;
 
-import android.annotation.NonNull;
 import android.content.Context;
 import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
-import android.telephony.PhoneNumberUtils;
+import android.os.Registrant;
 import android.telephony.Rlog;
-import android.telephony.SignalStrength;
-import android.telephony.SmsMessage;
 import android.text.TextUtils;
 
 import com.android.internal.telephony.BaseCommands;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
-import com.android.internal.telephony.DriverCall;
-import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
-import com.android.internal.telephony.SmsConstants;
-import com.android.internal.telephony.SmsResponse;
 import com.android.internal.telephony.UUSInfo;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
 import com.android.internal.telephony.gsm.SmsBroadcastConfigInfo;
-import com.android.internal.telephony.uicc.IccCardApplicationStatus;
-import com.android.internal.telephony.uicc.IccCardStatus;
-import com.android.internal.telephony.uicc.IccCardStatus.CardState;
 import com.android.internal.telephony.uicc.IccIoResult;
 import com.android.internal.telephony.uicc.IccUtils;
 
-import org.freedesktop.DBus;
 import org.freedesktop.dbus.DBusConnection;
 import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSigHandler;
 import org.freedesktop.dbus.DBusSignal;
-import org.freedesktop.dbus.Path;
-import org.freedesktop.dbus.UInt16;
-import org.freedesktop.dbus.UInt32;
-import org.freedesktop.dbus.Variant;
 import org.freedesktop.dbus.exceptions.DBusException;
-import org.freedesktop.dbus.exceptions.DBusExecutionException;
-import org.ofono.Manager;
-import org.ofono.MessageManager;
-import org.ofono.MessageWaiting;
-import org.ofono.Modem;
-import org.ofono.NetworkRegistration;
-import org.ofono.Pair;
-import org.ofono.SimManager;
-import org.ofono.Struct1;
-import org.ofono.SupplementaryServices;
-import org.ofono.VoiceCall;
-import org.ofono.VoiceCallManager;
 
-import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TimeZone;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_EDGE;
-import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_GSM;
-import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_HSPA;
-import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_LTE;
-import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UMTS;
-import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
-import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
-import static com.android.internal.telephony.CommandException.Error.INVALID_PARAMETER;
-import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
-import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
+import static net.scintill.ril_ofono.Utils.getCallerMethodName;
 
 public class RilOfono extends BaseCommands implements CommandsInterface {
 
-    private static final String TAG = "RilOfono";
+    /*package*/ static final String TAG = "RilOfono";
     private static final int BUILD_NUMBER = 11;
     /*package*/ static final boolean LOG_POTENTIALLY_SENSITIVE_INFO = true;
 
@@ -116,24 +69,19 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     private Handler mDbusHandler;
     private Handler mMainHandler;
 
+    private ModemModule mModemModule;
+    private SmsModule mSmsModule;
+    private SimModule mSimModule;
+    private CallModule mCallModule;
+    private SupplementaryServicesModule mSupplSvcsModule;
+
     private DBusConnection mDbus;
-    private Modem mModem;
-    private final Map<String, Variant> mModemProps = new HashMap<>();
-    private NetworkRegistration mNetReg;
-    private final Map<String, Variant> mNetRegProps = new HashMap<>();
-    private SimManager mSim;
-    private final Map<String, Variant> mSimProps = new HashMap<>();
-    private MessageWaiting mMsgWaiting;
-    private final Map<String, Variant> mMsgWaitingProps = new HashMap<>();
-    private SupplementaryServices mSupplSvcs;
 
-    private MessageManager mMessenger;
-    private VoiceCallManager mCallManager;
-
-    private final SimFiles mSimFiles = new SimFiles(mSimProps, mMsgWaitingProps);
+    /*package*/ static RilOfono sInstance;
 
     public RilOfono(Context context, int preferredNetworkType, int cdmaSubscription, Integer instanceId) {
         super(context);
+        sInstance = this;
         Rlog.d(TAG, "RilOfono "+BUILD_NUMBER+" starting");
 
         mPhoneType = RILConstants.NO_PHONE;
@@ -143,42 +91,45 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         mMainHandler = new Handler(new EmptyHandlerCallback());
         mDbusHandler = new Handler(dbusThread.getLooper(), new EmptyHandlerCallback());
 
-        mDbusHandler.post(new Runnable() {
-            @SuppressWarnings("unchecked")
+        try {
+            mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
+        } catch (DBusException e) {
+            logException("RilOfono", e);
+            System.exit(-1); // XXX how to better react to this?
+        }
+        mModemModule = new ModemModule(mVoiceNetworkStateRegistrants, mVoiceRadioTechChangedRegistrants);
+        mSmsModule = new SmsModule(new DynamicRegistrantListFromField("mGsmSmsRegistrant")); // TODO gsm-specific
+        mSimModule = new SimModule(mIccStatusChangedRegistrants);
+        mCallModule = new CallModule(mCallStateRegistrants);
+        mSupplSvcsModule = new SupplementaryServicesModule(new DynamicRegistrantListFromField("mUSSDRegistrant"));
+        mModemModule.onModemChange(false); // initialize starting state
+
+        //mMainHandler.postDelayed(new Tests(mSmsModule), 10000);
+    }
+
+    /*package*/ void onModemAvail() {
+        mMainHandler.post(new Runnable() {
             @Override
             public void run() {
-                try {
-                    mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
-                    mModem = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, Modem.class);
-                    mSim = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, SimManager.class);
-                    mNetReg = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, NetworkRegistration.class);
-                    mMessenger = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageManager.class);
-                    mCallManager = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, VoiceCallManager.class);
-                    mMsgWaiting = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, MessageWaiting.class);
-                    mSupplSvcs = mDbus.getRemoteObject(OFONO_BUS_NAME, MODEM_PATH, SupplementaryServices.class);
-                    DBusSigHandler sigHandler = new DbusSignalHandler();
-                    mDbus.addSigHandler(Manager.ModemAdded.class, sigHandler);
-                    mDbus.addSigHandler(Manager.ModemRemoved.class, sigHandler);
-                    mDbus.addSigHandler(Modem.PropertyChanged.class, sigHandler);
-                    mDbus.addSigHandler(NetworkRegistration.PropertyChanged.class, sigHandler);
-                    mDbus.addSigHandler(SimManager.PropertyChanged.class, sigHandler);
-                    mDbus.addSigHandler(org.ofono.Message.PropertyChanged.class, sigHandler);
-                    mDbus.addSigHandler(MessageManager.IncomingMessage.class, sigHandler);
-                    mDbus.addSigHandler(MessageManager.ImmediateMessage.class, sigHandler);
-                    mDbus.addSigHandler(MessageWaiting.PropertyChanged.class, sigHandler);
-                    mDbus.addSigHandler(VoiceCallManager.CallAdded.class, sigHandler);
-                    mDbus.addSigHandler(VoiceCall.PropertyChanged.class, sigHandler);
-                    mDbus.addSigHandler(VoiceCallManager.CallRemoved.class, sigHandler);
-                    initProps();
-                    onModemChange(false); // initialize starting state
-                } catch (DBusException e) {
-                    logException("RilOfono", e);
-                    System.exit(-1); // XXX how to better react to this?
-                }
+                // see RIL.java for RIL_UNSOL_RIL_CONNECTED
+                setRadioPower(false, cbToMsg(new Handler.Callback() {
+                    @Override
+                    public boolean handleMessage(Message msg) {
+                        AsyncResult ar = (AsyncResult) msg.obj;
+                        if (ar.exception == null) {
+                            setRadioState(RadioState.RADIO_OFF);
+                        } else {
+                            setRadioState(RadioState.RADIO_UNAVAILABLE);
+                            logException("onModemAvail setRadioPower", ar.exception);
+                        }
+                        return true;
+                    }
+                }));
+                Rlog.d(TAG, "notifyRegistrantsRilConnectionChanged");
+                updateRilConnection(RIL_VERSION);
             }
         });
-
-        //mMainHandler.postDelayed(new Tests(this), 10000);
+        // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
     }
 
     @Override
@@ -263,84 +214,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void getCurrentCalls(Message result) {
-        try {
-            List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
-            Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
-            for (Map<String, Variant> callProps : mCallsProps.values()) {
-                DriverCall call = new DriverCall();
-                call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
-                call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
-                if (call.state == null || call.index == -1) {
-                    Rlog.e(TAG, "Skipping unknown call: "+privStr(callProps));
-                    continue; // <--- skip unknown call
-                }
-
-                String lineId = getProp(callProps, "LineIdentification", "");
-                if (lineId.length() == 0 || lineId.equals("withheld")) lineId = null;
-                call.TOA = PhoneNumberUtils.toaFromString(lineId);
-                call.isMpty = false;
-                call.isMT = !getProp(callProps, PROPNAME_CALL_MOBORIG, false);
-                call.als = 0; // SimulatedGsmCallState
-                call.isVoice = true;
-                call.isVoicePrivacy = false; // oFono doesn't tell us
-                call.number = lineId;
-                call.numberPresentation = PhoneConstants.PRESENTATION_UNKNOWN;
-                call.name = getProp(callProps, "Name", "");
-                call.namePresentation = PhoneConstants.PRESENTATION_UNKNOWN;
-                // TODO check if + is shown in number
-                calls.add(call);
-            }
-            Collections.sort(calls); // not sure why, but original RIL does
-            respondOk("getCurrentCalls", result, new PrivResponseOb(calls));
-        } catch (Throwable t) {
-            Rlog.e(TAG, "Error getting calls", privExc(t));
-            respondExc("getCurrentCalls", result, GENERIC_FAILURE, null);
-        }
-    }
-
-    private final Map<String, Map<String, Variant>> mCallsProps = new HashMap<>();
-    private ConcurrentLinkedQueue<Integer> mAvailableCallIndices; {
-        mAvailableCallIndices = new ConcurrentLinkedQueue<>();
-        // GsmCallTracker.MAX_CONNECTIONS = 7, CDMA allows 8
-        for (int i = 1; i <= 7; i++) mAvailableCallIndices.add(i);
-    }
-
-    private static final String PROPNAME_CALL_INDEX = "_RilOfono_CallIndex";
-    private static final String PROPNAME_CALL_MOBORIG = "_RilOfono_CallMobileOriginating";
-
-    public void handle(VoiceCallManager.CallAdded s) {
-        String callPath = s.path.getPath();
-        Rlog.d(TAG, "handle CallAdded "+ callPath);
-        Map<String, Variant> newCallProps = new HashMap<>(s.properties);
-        newCallProps.put(PROPNAME_CALL_INDEX, new Variant<>(mAvailableCallIndices.remove()));
-        putOrMerge2dProps(mCallsProps, callPath, newCallProps);
-
-        mMainHandler.post(mFnNotifyCallStateChanged);
-    }
-
-    public void handle(VoiceCall.PropertyChanged s) {
-        handle2dPropChange(mCallsProps, s.getPath(), VoiceCall.class, s.name, s.value);
-        postDebounced(mMainHandler, mFnNotifyCallStateChanged, 200);
-    }
-
-    public void handle(VoiceCallManager.CallRemoved s) {
-        String callPath = s.path.getPath();
-        Rlog.d(TAG, "handle CallRemoved");
-        int callIndex = getProp(mCallsProps.get(callPath), PROPNAME_CALL_INDEX, -1);
-        mCallsProps.remove(callPath);
-        if (callIndex != -1) mAvailableCallIndices.add(callIndex);
-        mMainHandler.post(mFnNotifyCallStateChanged);
-    }
-
-    private String getDbusPathForCallIndex(int i) {
-        synchronized (mCallsProps) {
-            for (Map.Entry<String, Map<String, Variant>> entry : mCallsProps.entrySet()) {
-                if (getProp(entry.getValue(), PROPNAME_CALL_INDEX, -1) == i) {
-                    return entry.getKey();
-                }
-            }
-        }
-        return null;
+        mCallModule.getCurrentCalls(result);
     }
 
     @Override
@@ -354,134 +228,13 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
-    public void dial(final String address, int clirMode, final Message result) {
-        final String clirModeStr;
-        switch (clirMode) {
-            case CLIR_DEFAULT: clirModeStr = "default"; break;
-            case CLIR_INVOCATION: clirModeStr = "enabled"; break;
-            case CLIR_SUPPRESSION: clirModeStr = "disabled"; break;
-            default:
-                throw new IllegalArgumentException("unknown CLIR constant "+clirMode);
-        }
-
-        mDbusHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Path dialedCallPath = mCallManager.Dial(address, clirModeStr);
-                    Map<String, Variant> dialedCallProps = new HashMap<>();
-                    dialedCallProps.put(PROPNAME_CALL_MOBORIG, new Variant<>(true));
-                    putOrMerge2dProps(mCallsProps, dialedCallPath.getPath(), dialedCallProps);
-                    Rlog.d(TAG, "dialed "+dialedCallPath.getPath());
-                    respondOk("dial", result, null);
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error dialing", privExc(t));
-                    respondExc("dial", result, GENERIC_FAILURE, null);
-                }
-            }
-        });
+    public void dial(String address, int clirMode, Message result) {
+        mCallModule.dial(address, clirMode, result);
     }
 
     @Override
     public void dial(String address, int clirMode, UUSInfo uusInfo, Message result) {
-        if (uusInfo != null) {
-            respondExc(getCallerMethodName(), result, MODE_NOT_SUPPORTED, null);
-        } else {
-            dial(address, clirMode, result);
-        }
-    }
-
-    @Override
-    public void hangupConnection(final int gsmIndex, final Message result) {
-        mDbusHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    String callPath = getDbusPathForCallIndex(gsmIndex);
-                    if (callPath == null) {
-                        respondExc("hangupConnection", result, NO_SUCH_ELEMENT, null);
-                        return;
-                    }
-                    VoiceCall call = mDbus.getRemoteObject(OFONO_BUS_NAME, callPath, VoiceCall.class);
-                    call.Hangup();
-                    respondOk("hangupConnection", result, null);
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error hanging up", privExc(t));
-                    respondExc("hangupConnection", result, GENERIC_FAILURE, null);
-                }
-            }
-        });
-    }
-
-    @Override
-    public void hangupWaitingOrBackground(final Message result) {
-        mDbusHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                boolean oneSucceeded = false, oneExcepted = false;
-                for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
-                    String callPath = callPropsEntry.getKey();
-                    Map<String, Variant> callProps = callPropsEntry.getValue();
-                    try {
-                        DriverCall.State callState = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
-                        // TODO which states should be hungup? should we only hang up one?
-                        if (callState != null) {
-                            switch (callState) {
-                                case INCOMING:
-                                case HOLDING:
-                                case WAITING:
-                                    VoiceCall call = mDbus.getRemoteObject(OFONO_BUS_NAME, callPath, VoiceCall.class);
-                                    call.Hangup();
-                                    oneSucceeded = true;
-                                    break;
-                                default:
-                                    // skip
-                            }
-                        }
-                    } catch (Throwable t) {
-                        oneExcepted = true;
-                        Rlog.e(TAG, "Error checking/hangingup call", privExc(t));
-                    }
-                }
-
-                if (oneSucceeded) {
-                    respondOk("hangupWaitingOrBackground", result, null);
-                } else if (oneExcepted) {
-                    respondExc("hangupWaitingOrBackground", result, GENERIC_FAILURE, null);
-                } else {
-                    respondExc("hangupWaitingOrBackground", result, NO_SUCH_ELEMENT, null);
-                }
-            }
-        });
-    }
-
-    @Override
-    public void acceptCall(final Message result) {
-        mDbusHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
-                        String callPath = callPropsEntry.getKey();
-                        Map<String, Variant> callProps = callPropsEntry.getValue();
-                        if (Utils.parseOfonoCallState(getProp(callProps, "State", "")) == DriverCall.State.INCOMING) {
-                            VoiceCall call = mDbus.getRemoteObject(OFONO_BUS_NAME, callPath, VoiceCall.class);
-                            call.Answer();
-                            respondOk("acceptCall", result, null);
-                        }
-                    }
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error accepting call", privExc(t));
-                    respondExc("acceptCall", result, GENERIC_FAILURE, null);
-                }
-            }
-        });
-    }
-
-    @Override
-    public void rejectCall(Message result) {
-        // TODO RIL.java sends UDUB, which may not be the same as what we're indirectly asking oFono to do here
-        hangupWaitingOrBackground(result);
+        mCallModule.dial(address, clirMode, uusInfo, result);
     }
 
     @Override
@@ -515,6 +268,16 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
+    public void acceptCall(Message result) {
+        mCallModule.acceptCall(result);
+    }
+
+    @Override
+    public void rejectCall(Message result) {
+        mCallModule.rejectCall(result);
+    }
+
+    @Override
     public void explicitCallTransfer(Message result) {
         respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
@@ -545,54 +308,43 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
+    public void getSignalStrength(Message response) {
+        mModemModule.getSignalStrength(response);
+    }
+
+    @Override
+    public void getVoiceRegistrationState(Message response) {
+        mModemModule.getVoiceRegistrationState(response);
+    }
+
+    @Override
     public void getIMSI(Message result) {
         getIMSIForApp(null, result);
     }
 
     @Override
     public void getIMSIForApp(String aid, Message result) {
-        // TODO GSM-specific?
-        String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
-        if (imsi != null) {
-            respondOk("getIMSIForApp", result, new PrivResponseOb(imsi), true);
-        } else {
-            respondExc("getIMSIForApp", result, GENERIC_FAILURE, null);
-        }
+        mSimModule.getIMSIForApp(aid, result);
     }
 
     @Override
     public void getIMEI(Message result) {
-        // TODO GSM-specific?
-        respondOk("getIMEI", result, new PrivResponseOb(getProp(mModemProps, "Serial", "")), true);
+        mModemModule.getIMEI(result);
     }
 
     @Override
     public void getIMEISV(Message result) {
-        // TODO GSM-specific?
-        respondOk("getIMEISV", result, new PrivResponseOb(getProp(mModemProps, "SoftwareVersionNumber", "")), true);
-    }
-
-
-    @Override
-    public void getSignalStrength(Message response) {
-        // TODO I can't seem to find this on the ofono bus, but supposedly it's supported
-        // make up a low strength
-        SignalStrength s = new SignalStrength(20, 1, -1, -1, -1, -1, -1, true);
-        respondOk("getSignalStrength", response, s, true);
+        mModemModule.getIMEISV(result);
     }
 
     @Override
-    public void getVoiceRegistrationState(Message response) {
-        OfonoRegistrationState state = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown);
-        if (!state.isRegistered()) {
-            respondOk("getVoiceRegistrationState", response, new String[]{ ""+state.ts27007Creg, "-1", "-1" });
-        } else {
-            respondOk("getVoiceRegistrationState", response, new PrivResponseOb(new String[]{
-                    ""+state.ts27007Creg,
-                    getProp(mNetRegProps, "LocationAreaCode", "-1"),
-                    getProp(mNetRegProps, "CellId", "-1")
-            }));
-        }
+    public void hangupConnection(int gsmIndex, Message result) {
+        mCallModule.hangupConnection(gsmIndex, result);
+    }
+
+    @Override
+    public void hangupWaitingOrBackground(Message result) {
+        mCallModule.hangupWaitingOrBackground(result);
     }
 
     @Override
@@ -600,24 +352,9 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         respondExc("getDataRegistrationState", response, REQUEST_NOT_SUPPORTED, null);
     }
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private final String STAR_EMOJI = "🌠"; // make it obvious we're running this RIL
-
     @Override
     public void getOperator(Message response) {
-        boolean registered = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown).isRegistered();
-        String name = getProp(mNetRegProps, "Name", "");
-        String mcc = getProp(mNetRegProps, "MobileCountryCode", "");
-        String mnc = getProp(mNetRegProps, "MobileNetworkCode", "");
-        name = STAR_EMOJI + name + STAR_EMOJI;
-        if (registered && mcc.length() > 0 && mnc.length() > 0 && name.length() > 0) {
-            respondOk("getOperator", response, new String[] {
-                    name, name, /* TODO does Ofono offer distinct short and long names? */
-                    mcc+mnc
-            });
-        } else {
-            respondOk("getOperator", response, new String[] { null, null, null });
-        }
+        mModemModule.getOperator(response);
     }
 
     @Override
@@ -640,95 +377,15 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
     }
 
-    AtomicInteger mSmsRef = new AtomicInteger(1);
-    final Map<String, Message> mMapSmsDbusPathToSenderCallback = new HashMap<>();
-    // TODO synchronization on this map object is how I ensure signals don't arrive before the entry into this map,
-    // but are there any adverse effects of synchronizing so broadly?
-
     @Override
-    public void sendSMS(String smscPDUStr, String pduStr, final Message response) {
-        Rlog.d(TAG, "sendSMS");
-        // TODO gsm-specific?
-        // TODO is there a way to preserve the whole pdu to ofono? should we check for special things that ofono won't do, and refuse to send if the PDU contains them?
-
-        final SmsMessage msg = parseSmsPduStrs(smscPDUStr, pduStr);
-
-        if (msg == null || msg.getRecipientAddress() == null || msg.getMessageBody() == null) {
-            respondExc("sendSMS", response, INVALID_PARAMETER, null);
-        } else {
-            mDbusHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        synchronized (mMapSmsDbusPathToSenderCallback) {
-                            // TODO timeout on this method? at least we're not on the main thread,
-                            // but we could block anything else trying to get on the dbus thread
-                            Path sentMessage = mMessenger.SendMessage(msg.getRecipientAddress(), msg.getMessageBody());
-                            mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), response);
-                        }
-                    } catch (Throwable t) {
-                        Rlog.e(TAG, "Error sending msg", t);
-                        respondExc("sendSMS", response, GENERIC_FAILURE, null);
-                    }
-                }
-            });
-        }
-    }
-
-    public void handleSendSmsComplete(String msgDbusPath, String status) {
-        // find callback from sendSMS()
-        Message senderCb;
-        synchronized (mMapSmsDbusPathToSenderCallback) {
-            senderCb = mMapSmsDbusPathToSenderCallback.get(msgDbusPath);
-        }
-        if (senderCb == null) {
-            Rlog.e(TAG, "Got a signal about a message we don't know about! path="+msgDbusPath);
-        } else {
-            // we currently have no use for the sms reference numbers, but let's give out sensible ones
-            boolean success = status.equals("sent");
-            String ackPdu = ""; // we don't have one, I don't think SmsResponse uses it either
-            if (success) {
-                respondOk("sendSMS", senderCb, new SmsResponse(mSmsRef.incrementAndGet(), ackPdu, -1));
-            } else {
-                respondExc("sendSMS", senderCb, GENERIC_FAILURE, new SmsResponse(mSmsRef.incrementAndGet(), ackPdu, -1));
-            }
-        }
+    public void sendSMS(String smscPDUStr, String pduStr, Message response) {
+        mSmsModule.sendSMS(smscPDUStr, pduStr, response);
     }
 
     @Override
     public void sendSMSExpectMore(String smscPDU, String pdu, Message result) {
         // TODO can oFono benefit from knowing to "expect more"?
         sendSMS(smscPDU, pdu, result);
-    }
-
-    private void handleIncomingMessage(String content, Map<String, Variant> info) {
-        String dateStr = (String) info.get("SentTime").getValue();
-        String sender = (String) info.get("Sender").getValue();
-
-        //Rlog.d(TAG, "handleIncomingMessage "+privStr(sender)+" "+dateStr+" "+privStr(content));
-
-        Date date = Utils.parseOfonoDate(dateStr);
-        if (date == null) {
-            Rlog.e(TAG, "error parsing SMS date "+dateStr);
-            date = new Date();
-        }
-
-        final Object msg = createReceivedMessage(sender, content, date, getProp(info, "Immediate", false));
-        mMainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mGsmSmsRegistrant.notifyResult(msg);
-            }
-        });
-    }
-
-    public void handle(MessageManager.IncomingMessage s) {
-        handleIncomingMessage(s.message, s.info);
-    }
-
-    public void handle(MessageManager.ImmediateMessage s) {
-        s.info.put("Immediate", new Variant<>(true));
-        handleIncomingMessage(s.message, s.info);
     }
 
     @Override
@@ -767,16 +424,8 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
-    public void setRadioPower(final boolean on, final Message response) {
-        Rlog.v(TAG, "setRadioPower("+on+")");
-
-        mDbusHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mModem.SetProperty("Online", new Variant<>(on));
-                respondOk("setRadioPower", response, null);
-            }
-        });
+    public void setRadioPower(boolean on, Message response) {
+        mModemModule.setRadioPower(on, response);
     }
 
     @Override
@@ -801,7 +450,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message response) {
-        mSimFiles.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, response);
+        mSimModule.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, response);
     }
 
     @Override
@@ -851,12 +500,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void getNetworkSelectionMode(Message response) {
-        String mode = getProp(mNetRegProps, "Mode", (String)null);
-        if (mode == null) {
-            respondExc("getNetworkSelectionMode", response, GENERIC_FAILURE, null);
-        } else {
-            respondOk("getNetworkSelectionMode", response, new int[]{ mode.equals("manual") ? 1 : 0 });
-        }
+        mModemModule.getNetworkSelectionMode(response);
     }
 
     @Override
@@ -866,7 +510,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     @Override
     public void getBasebandVersion(Message response) {
-        respondOk("getBaseBandVersion", response, getProp(mModemProps, "Revision", ""), true);
+        mModemModule.getBasebandVersion(response);
     }
 
     @Override
@@ -890,26 +534,8 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     }
 
     @Override
-    public void sendUSSD(final String ussdString, final Message response) {
-        // TODO network-initiated USSD. apparently they're rare, and it doesn't look like the rild backend of oFono supports them
-        mDbusHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    // TODO do on a separate thread? oFono docs seem to imply this will block everything anyway
-                    Pair<String, Variant> ussdResponse = mSupplSvcs.Initiate(ussdString);
-                    respondOk("sendUSSD", response, null);
-                    if (!ussdResponse.a.equals("USSD")) {
-                        mUSSDRegistrant.notifyResult(new String[]{""+USSD_MODE_NOT_SUPPORTED, null});
-                    } else {
-                        mUSSDRegistrant.notifyResult(new String[]{""+USSD_MODE_NOTIFY, (String) ussdResponse.b.getValue()});
-                    }
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error initiating USSD", privExc(t));
-                    respondExc("sendUSSD", response, GENERIC_FAILURE, null);
-                }
-            }
-        });
+    public void sendUSSD(String ussdString, Message response) {
+        mSupplSvcsModule.sendUSSD(ussdString, response);
     }
 
     @Override
@@ -1095,41 +721,9 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
-    private static final String SIM_APP_ID = "00";
-
     @Override
     public void getIccCardStatus(Message result) {
-        // TODO GSM-specific? can we/should we do more?
-        IccCardStatus cardStatus = new IccCardStatus();
-        cardStatus.mCdmaSubscriptionAppIndex = -1;
-        cardStatus.mImsSubscriptionAppIndex = -1;
-
-        Boolean present = getProp(mSimProps, "Present", (Boolean)null);
-        if (present == null) {
-            cardStatus.mCardState = CardState.CARDSTATE_ERROR;
-        } else {
-            cardStatus.mCardState = present ? CardState.CARDSTATE_PRESENT : CardState.CARDSTATE_ABSENT;
-        }
-
-        IccCardApplicationStatus gsmAppStatus = new IccCardApplicationStatus();
-        gsmAppStatus.app_type = IccCardApplicationStatus.AppType.APPTYPE_SIM;
-        gsmAppStatus.app_state = IccCardApplicationStatus.AppState.APPSTATE_READY;
-        gsmAppStatus.aid = SIM_APP_ID;
-        gsmAppStatus.app_label = "Ofono SIM";
-        gsmAppStatus.pin1 = IccCardStatus.PinState.PINSTATE_DISABLED; // TODO
-        gsmAppStatus.pin2 = IccCardStatus.PinState.PINSTATE_DISABLED; // TODO
-
-        if (cardStatus.mCardState == CardState.CARDSTATE_PRESENT) {
-            cardStatus.mGsmUmtsSubscriptionAppIndex = 0;
-            cardStatus.mApplications = new IccCardApplicationStatus[] { gsmAppStatus };
-        } else {
-            cardStatus.mGsmUmtsSubscriptionAppIndex = -1;
-            cardStatus.mApplications = new IccCardApplicationStatus[0];
-        }
-
-        cardStatus.mUniversalPinState = IccCardStatus.PinState.PINSTATE_DISABLED; // TODO
-
-        respondOk("getIccCardStatus", result, new PrivResponseOb(cardStatus), true);
+        mSimModule.getIccCardStatus(result);
     }
 
     @Override
@@ -1142,20 +736,9 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
     }
 
-    private Object getVoiceRadioTechnologyAsyncResult() {
-        // TODO is this really the right value?
-        try {
-            OfonoNetworkTechnology tech = getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown);
-            return new int[]{ tech.serviceStateInt };
-        } catch (Throwable t) {
-            Rlog.e(TAG, "Error getting voice radio tech", t);
-            return new int[] { OfonoNetworkTechnology._unknown.serviceStateInt };
-        }
-    }
-
     @Override
     public void getVoiceRadioTechnology(Message result) {
-        respondOk("getVoiceRadioTechnology", result, getVoiceRadioTechnologyAsyncResult());
+        mModemModule.getVoiceRadioTechnology(result);
     }
 
     @Override
@@ -1203,244 +786,12 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         return false;
     }
 
-    private void onModemChange(boolean assumeManagerPresent) {
-        try {
-            Manager manager = mDbus.getRemoteObject(OFONO_BUS_NAME, "/", Manager.class);
-            List<Struct1> modems = manager.GetModems();
-            if (modems.size() > 0) {
-                Rlog.v(TAG, "modem avail");
-                // TODO figure out how to properly get modem object out of "modems" array? We
-                // get a Proxy object that gives us nothing useful and throws errors when we
-                // try to call methods it should have. Bug in autogenerated class stuff?
-                onModemAvail();
-            } else {
-                Rlog.v(TAG, "modem gone");
-                // TODO what?
-            }
-        } catch (DBus.Error.ServiceUnknown e) {
-            //noinspection StatementWithEmptyBody
-            if (assumeManagerPresent) {
-                throw e;
-            } else {
-                // ignore
-            }
-        } catch (Throwable t) {
-            logException("onModemChange", t);
-        }
+    @Override // just to make it accessible in this package
+    protected void setRadioState(RadioState newState) {
+        super.setRadioState(newState);
     }
 
-    public void handle(Manager.ModemAdded s) {
-        onModemChange(true);
-    }
-
-    public void handle(Manager.ModemRemoved s) {
-        onModemChange(true);
-    }
-
-    // property-mirroring signal handlers should delegate to handlePropChange(Map<>...)
-    public void handle(Modem.PropertyChanged s) {
-        handlePropChange(mModem, s.name, s.value);
-    }
-    public void handle(NetworkRegistration.PropertyChanged s) { handlePropChange(mNetReg, s.name, s.value); }
-    public void handle(SimManager.PropertyChanged s) {
-        handlePropChange(mSim, s.name, s.value);
-    }
-    public void handle(MessageWaiting.PropertyChanged s) { handlePropChange(mMsgWaiting, s.name, s.value); }
-
-    public void handle(org.ofono.Message.PropertyChanged s) {
-        if (s.name.equals("State")) {
-            String value = (String) s.value.getValue();
-            if (value.equals("sent") || value.equals("failed")) {
-                handleSendSmsComplete(s.getPath(), value);
-            }
-        }
-    }
-
-    // first parameter is just to select the method by type
-    private void handlePropChange(Modem modem, String name, Variant value) {
-        handlePropChange(mModemProps, Modem.class.getSimpleName(), name, value);
-        if (name.equals("Online")) {
-            final boolean online = (Boolean) value.getValue();
-            mMainHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
-                }
-            });
-        }
-    }
-
-    private void handlePropChange(NetworkRegistration netReg, String name, Variant value) {
-        handlePropChange(mNetRegProps, NetworkRegistration.class.getSimpleName(), name, value);
-        if (mFnNotifyNetworkChanged == null) mFnNotifyNetworkChanged = new DebouncedRunnable() {
-            @Override
-            public void run() {
-                Rlog.d(TAG, "notify voiceNetworkState");
-                mVoiceNetworkStateRegistrants.notifyRegistrants();
-                Rlog.d(TAG, "notify voiceRadioTechChanged");
-                mVoiceRadioTechChangedRegistrants.notifyResult(getVoiceRadioTechnologyAsyncResult());
-            }
-        };
-        postDebounced(mMainHandler, mFnNotifyNetworkChanged, 350);
-        // TODO data network registration?
-    }
-
-    private void handlePropChange(SimManager sim, String name, Variant value) {
-        handlePropChange(mSimProps, SimManager.class.getSimpleName(), name, value);
-        // TODO check if something that we report actually changed?
-        if (mFnNotifySimChanged == null) mFnNotifySimChanged = new DebouncedRunnable() {
-            @Override
-            public void run() {
-                Rlog.d(TAG, "notify iccStatusChanged");
-                mIccStatusChangedRegistrants.notifyRegistrants();
-            }
-        };
-        postDebounced(mMainHandler, mFnNotifySimChanged, 350);
-    }
-
-    private void handlePropChange(MessageWaiting msgWaiting, String name, Variant value) {
-        handlePropChange(mMsgWaitingProps, MessageWaiting.class.getSimpleName(), name, value);
-    }
-
-    private void handlePropChange(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
-        Rlog.v(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
-        //noinspection SynchronizationOnLocalVariableOrMethodParameter
-        synchronized (propsToUpdate) {
-            propsToUpdate.put(name, value);
-        }
-    }
-
-    private void handle2dPropChange(Map<String, Map<String, Variant>> propsToUpdateRoot, String keyToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant value) {
-        Map<String, Variant> propsToUpdate = propsToUpdateRoot.get(keyToUpdate);
-        if (propsToUpdate == null) {
-            propsToUpdateRoot.put(keyToUpdate, propsToUpdate = new HashMap<>());
-        }
-        handlePropChange(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
-    }
-
-    private void putOrMerge2dProps(Map<String, Map<String, Variant>> rootProps, String key, Map<String, Variant> props) {
-        //noinspection SynchronizationOnLocalVariableOrMethodParameter
-        synchronized (rootProps) {
-            if (!rootProps.containsKey(key)) {
-                rootProps.put(key, props);
-            } else {
-                // retain call origination properties
-                rootProps.get(key).putAll(props);
-            }
-        }
-    }
-
-    private void initProps() {
-        initProps(mModemProps, Modem.class, mModem);
-        initProps(mNetRegProps, NetworkRegistration.class, mNetReg);
-        initProps(mSimProps, SimManager.class, mSim);
-        initProps(mMsgWaitingProps, MessageWaiting.class, mMsgWaiting);
-    }
-
-    private void initProps(Map<String, Variant> propsToInit, Class<?extends DBusInterface> sourceObIface, DBusInterface sourceOb) {
-        // load properties
-        Map<String, Variant> props;
-        try {
-            Method m = sourceObIface.getMethod("GetProperties");
-            //noinspection unchecked
-            props = (Map<String, Variant>) m.invoke(sourceOb);
-        } catch (NoSuchMethodException | IllegalAccessException e) {
-            throw new RuntimeException("unable to find GetProperties method", e);
-        } catch (InvocationTargetException e) {
-            try {
-                if (e.getCause() instanceof DBusExecutionException) {
-                    throw (DBusExecutionException) e.getCause();
-                } else {
-                    throw new RuntimeException("error calling GetProperties() on " + sourceObIface.getSimpleName(), e.getCause());
-                }
-            } catch (DBus.Error.UnknownMethod unknownMethod) {
-                Rlog.w(TAG, "unable to GetProperties() on " + sourceObIface.getSimpleName());
-                // probably just isn't loaded yet, so give empty props
-                props = new HashMap<>();
-            }
-        }
-
-        //noinspection SynchronizationOnLocalVariableOrMethodParameter
-        synchronized (propsToInit) {
-            propsToInit.clear(); // TODO notify about removed props?
-            try {
-                Method m = this.getClass().getDeclaredMethod("handlePropChange", sourceObIface, String.class, Variant.class);
-                for (Map.Entry<String, Variant> entry : props.entrySet()) {
-                    propsToInit.put(entry.getKey(), entry.getValue());
-                    m.invoke(this, sourceOb, entry.getKey(), entry.getValue());
-                }
-            } catch (NoSuchMethodException | IllegalAccessException e) {
-                throw new RuntimeException("unable to find handlePropChange method", e);
-            } catch (InvocationTargetException e) {
-                throw new RuntimeException(e.getCause());
-            }
-        }
-    }
-
-    private <T> T getProp(Map<String, Variant> props, String key, T defaultValue) {
-        //noinspection unchecked
-        return props.get(key) != null ? (T) props.get(key).getValue() : defaultValue;
-    }
-
-    /*package*/ static <T> T[] getProp(Map<String, Variant> props, String key, @NonNull T[] defaultValue) {
-        if (props.get(key) != null) {
-            //noinspection unchecked
-            List<T> list = (List<T>)(props.get(key).getValue());
-            return list.toArray(defaultValue);
-        } else {
-            return defaultValue;
-        }
-    }
-
-    private Integer getProp(Map<String, Variant> props, String key, Integer defaultValue) {
-        if (props.get(key) == null) return defaultValue;
-        Object value = props.get(key).getValue();
-        if (value instanceof UInt16) return ((UInt16) value).intValue();
-        return (Integer) value;
-    }
-
-    private Long getProp(Map<String, Variant> props, String key, Long defaultValue) {
-        if (props.get(key) == null) return defaultValue;
-        Object value = props.get(key).getValue();
-        if (value instanceof UInt16) return ((UInt16) value).longValue();
-        if (value instanceof UInt32) return ((UInt32) value).longValue();
-        return (Long) value;
-    }
-
-    /*package*/ static String getProp(Map<String, Variant> props, String key, String defaultValue) {
-        return props.get(key) != null ? props.get(key).getValue().toString() : defaultValue;
-    }
-
-    private <T extends Enum> T getProp(Map<String, Variant> props, String key, T defaultValue) {
-        return (T) Enum.valueOf(defaultValue.getClass(), getProp(props, key, defaultValue.toString()));
-    }
-
-    private void onModemAvail() {
-        mMainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                // see RIL.java for RIL_UNSOL_RIL_CONNECTED
-                setRadioPower(false, cbToMsg(new Handler.Callback() {
-                    @Override
-                    public boolean handleMessage(Message msg) {
-                        AsyncResult ar = (AsyncResult) msg.obj;
-                        if (ar.exception == null) {
-                            setRadioState(RadioState.RADIO_OFF);
-                        } else {
-                            setRadioState(RadioState.RADIO_UNAVAILABLE);
-                            logException("onModemAvail setRadioPower", ar.exception);
-                        }
-                        return true;
-                    }
-                }));
-                Rlog.d(TAG, "notifyRegistrantsRilConnectionChanged");
-                updateRilConnection(RIL_VERSION);
-            }
-        });
-        // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
-    }
-
-    private void logException(String m, Throwable t) {
+    /*package*/ static void logException(String m, Throwable t) {
         Rlog.e(TAG, "Uncaught exception in "+m, t);
     }
 
@@ -1458,30 +809,57 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     // iccOpenLogicalChannel(), iccCloseLogicalChannel(), iccTransmitApduLogicalChannel(),
     // iccTransmitApduBasicChannel(), getAtr(), setLocalCallHold()
 
-    private String getCallerMethodName() {
-        StackTraceElement[] elements = Thread.currentThread().getStackTrace();
-        return elements[3].getMethodName();
-    }
-
     private static final String OFONO_BUS_NAME = "org.ofono";
     private static final String MODEM_PATH = "/ril_0";
+
+    /*package*/ <T extends DBusInterface> T getOfonoInterface(Class<T> tClass) {
+        return getOfonoInterface(tClass, MODEM_PATH);
+    }
+
+    /*package*/ <T extends DBusInterface> T getOfonoInterface(Class<T> tClass, String path) {
+        try {
+            return mDbus.getRemoteObject(OFONO_BUS_NAME, path, tClass);
+        } catch (Throwable t) {
+            Rlog.e(TAG, "Exception getting "+tClass.getSimpleName(), t);
+            return null;
+        }
+    }
+
+    /*package*/ <T extends DBusSignal> void registerDbusSignal(Class<T> signalClass, DBusSigHandler<T> handler) {
+        try {
+            mDbus.addSigHandler(signalClass, handler);
+        } catch (DBusException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /*package*/ <T extends DBusSignal> void registerDbusSignal(Class<T> signalClass, final Object handler) {
+        try {
+            final Method m = handler.getClass().getMethod("handle", signalClass);
+            mDbus.addSigHandler(signalClass, new DBusSigHandler<T>() {
+                @Override
+                public void handle(T s) {
+                    try {
+                        m.invoke(handler, s);
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException("Unexpected exception while delegating dbus signal", e);
+                    } catch (InvocationTargetException e) {
+                        Rlog.e(TAG, "Unexpected exception while delegating dbus signal", e.getCause());
+                        // do not re-throw
+                    }
+                }
+            });
+        } catch (DBusException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Unable to register dbus signal handler", e);
+        }
+    }
 
     private class EmptyHandlerCallback implements Handler.Callback {
         @Override
         public boolean handleMessage(Message msg) {
             return true;
-        }
-    }
-
-    private class DbusSignalHandler implements DBusSigHandler {
-        public void handle(DBusSignal s) {
-            try {
-                RilOfono.class.getMethod("handle", s.getClass()).invoke(RilOfono.this, s);
-            } catch (IllegalAccessException | NoSuchMethodException e) {
-                Rlog.e(TAG, "Unexpected exception while delegating dbus signal", e);
-            } catch (InvocationTargetException e) {
-                throw new RuntimeException(e.getCause());
-            }
         }
     }
 
@@ -1506,7 +884,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         }
     }
 
-    private void respondExc(String caller, Message response, CommandException.Error err, Object o) {
+    /*package*/ static void respondExc(String caller, Message response, CommandException.Error err, Object o) {
         respondExc(caller, response, err, o, false);
     }
 
@@ -1532,18 +910,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         return new Handler(cb).obtainMessage();
     }
 
-    // mostly a tag type to remind me use this correctly (only construct one for each purpose)
-    abstract class DebouncedRunnable implements Runnable {}
-    DebouncedRunnable mFnNotifyNetworkChanged;
-    DebouncedRunnable mFnNotifySimChanged;
-    final DebouncedRunnable mFnNotifyCallStateChanged = new DebouncedRunnable() {
-        @Override
-        public void run() {
-            mCallStateRegistrants.notifyResult(null);
-        }
-    };
-
-    private void postDebounced(Handler h, DebouncedRunnable r, long delayMillis) {
+    private static void postDebounced(Handler h, DebouncedRunnable r, long delayMillis) {
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (h) {
             if (!h.hasCallbacks(r)) {
@@ -1552,81 +919,16 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         }
     }
 
-    enum OfonoRegistrationState {
-        unregistered(0), registered(1), searching(2), denied(3), unknown(4), roaming(5);
-        public int ts27007Creg;
-        OfonoRegistrationState(int ts27007Creg) {
-            this.ts27007Creg = ts27007Creg;
-        }
-        public boolean isRegistered() {
-            return this == registered || this == roaming;
-        }
+    /*package*/ static void runOnDbusThread(Runnable r) {
+        sInstance.mDbusHandler.post(r);
     }
 
-    enum OfonoNetworkTechnology {
-        gsm(RIL_RADIO_TECHNOLOGY_GSM), edge(RIL_RADIO_TECHNOLOGY_EDGE), umts(RIL_RADIO_TECHNOLOGY_UMTS),
-        hspa(RIL_RADIO_TECHNOLOGY_HSPA), lte(RIL_RADIO_TECHNOLOGY_LTE),
-        _unknown(RIL_RADIO_TECHNOLOGY_UNKNOWN);
-        public int serviceStateInt;
-        OfonoNetworkTechnology(int serviceStateInt) {
-            this.serviceStateInt = serviceStateInt;
-        }
+    /*package*/ static void runOnMainThread(Runnable r) {
+        sInstance.mMainHandler.post(r);
     }
 
-    private SmsMessage parseSmsPduStrs(String smscPDUStr, String pduStr) {
-        if (smscPDUStr == null) {
-            smscPDUStr = "00"; // see PduParser; means no smsc
-        }
-        try {
-            return SmsMessage.createFromPdu(IccUtils.hexStringToBytes(smscPDUStr + pduStr), SmsConstants.FORMAT_3GPP);
-        } catch (Throwable t) {
-            // SmsMessage should have logged information about the error
-            return null;
-        }
-    }
-
-    private SmsMessage createReceivedMessage(String sender, String contentText, Date date, boolean immediate) {
-        try {
-            // see SmsMessage#parsePdu
-            ByteArrayOutputStream os = new ByteArrayOutputStream();
-            os.write(new byte[] {
-                    0x00, // null sc address
-                    0x00, // deliver type. no reply path or user header
-            });
-            byte[] bcdSender = PhoneNumberUtils.networkPortionToCalledPartyBCD(sender);
-            os.write((bcdSender.length - 1) * 2); // BCD digit count, excluding TOA.
-            os.write(bcdSender);
-
-            // build a submit pdu so it will encode the message for us
-            // it turned out to not be as convenient as I hoped, but probably still better than
-            // writing/copying here
-            com.android.internal.telephony.gsm.SmsMessage.SubmitPdu submitPduOb =
-                    com.android.internal.telephony.gsm.SmsMessage.getSubmitPdu(null, "0", contentText, false);
-            byte[] submitPdu = new byte[1 + submitPduOb.encodedMessage.length];
-            submitPdu[0] = 0x00; // null sc adddr, so it will parse below
-            System.arraycopy(submitPduOb.encodedMessage, 0, submitPdu, 1, submitPduOb.encodedMessage.length);
-            com.android.internal.telephony.gsm.SmsMessage msg =
-                    com.android.internal.telephony.gsm.SmsMessage.createFromPdu(submitPdu);
-            if (msg == null) throw new RuntimeException("unable to parse submit pdu to create deliver pdu");
-
-            // finish writing the deliver
-            int dataCodingScheme = callPrivateMethod(msg, Integer.class, "getDataCodingScheme");
-            os.write(new byte[]{
-                0x00, // protocol identifier
-                (byte) (dataCodingScheme | (immediate ? 0x10 : 0))
-            });
-            os.write(getScTimestamp(date));
-            byte[] payload = msg.getUserData();
-            os.write(AospUtils.getEncodingType(dataCodingScheme) != SmsConstants.ENCODING_7BIT ?
-                    payload.length : // octet length
-                    // septet length - we can't tell how many meaningful septets there are, but
-                    // I think in the case of 7bit it will always be the length of the string
-                    contentText.length());
-            os.write(payload);
-            return SmsMessage.createFromPdu(os.toByteArray(), SmsConstants.FORMAT_3GPP);
-        } catch (Throwable t) {
-            return null;
-        }
+    /*package*/ static void runOnMainThreadDebounced(DebouncedRunnable r, long delayMillis) {
+        postDebounced(sInstance.mMainHandler, r, delayMillis);
     }
 
     public static CharSequence toDebugString(Object o) {
@@ -1663,30 +965,46 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         return LOG_POTENTIALLY_SENSITIVE_INFO ? String.valueOf(o) : "XXXXX";
     }
 
-    private static Throwable privExc(Throwable t) {
+    /*package*/ static Throwable privExc(Throwable t) {
         // TODO find a way to pass back the safe parts instead of null?
         //noinspection ConstantConditions
         return LOG_POTENTIALLY_SENSITIVE_INFO ? t : null;
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> T callPrivateMethod(Object o, Class<T> returnClass, String methodName)
-            throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
-
-        Method m = o.getClass().getDeclaredMethod(methodName);
-        m.setAccessible(true);
-        return (T) m.invoke(o);
+    /*
+     * Works similar to Android's RegistrantList.
+     */
+    /*package*/ interface RegistrantList {
+        void notifyResult(Object result);
     }
 
-    private static byte[] getScTimestamp(Date d) {
-        // opposite of SmsMessage#getSCTimestampMillis()
-        // value is BCD nibble-swapped ymdhmszz (z = zone)
-        SimpleDateFormat fmt = new SimpleDateFormat("ssmmHHddMMyy", Locale.US);
-        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-        StringBuilder b = new StringBuilder(fmt.format(d));
-        b.reverse();
-        b.append("00"); // TODO preserve real tz?
-        return IccUtils.hexStringToBytes(b.toString());
+    /*
+     * Helps paper over the difference between a single registrant stored in a mutable field, and a list
+     * of registrants.
+     */
+    class DynamicRegistrantListFromField implements RegistrantList {
+        Field mField;
+        DynamicRegistrantListFromField(String fieldname) {
+            try {
+                mField = Utils.getField(RilOfono.this, fieldname);
+                mField.setAccessible(true);
+            } catch (NoSuchFieldException e) {
+                throw new RuntimeException("unable to create dynamic registrant list from field "+fieldname, e);
+            }
+        }
+
+        @Override
+        public void notifyResult(Object result) {
+            try {
+                Registrant registrant = (Registrant) mField.get(RilOfono.this);
+                registrant.notifyResult(result);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException("unable to get registrant", e);
+            }
+        }
     }
 
 }
+
+// mostly a tag type to remind me use this correctly (only construct one for each purpose)
+/*package*/ abstract class DebouncedRunnable implements Runnable {}

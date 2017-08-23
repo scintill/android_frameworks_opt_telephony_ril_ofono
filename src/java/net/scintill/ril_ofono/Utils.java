@@ -23,11 +23,14 @@ import android.telephony.Rlog;
 
 import com.android.internal.telephony.DriverCall;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class Utils {
+public abstract class Utils {
 
     private static final String TAG = "OfonoUtils";
 
@@ -78,5 +81,30 @@ public class Utils {
         return i < s.length() ? (byte)(s.charAt(i) - '0') : 0xf;
     }
 
+
+    @SuppressWarnings("unchecked")
+    /*package*/ static <T> T callPrivateMethod(Object o, Class<T> returnClass, String methodName)
+            throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+
+        Method m = o.getClass().getDeclaredMethod(methodName);
+        m.setAccessible(true);
+        return (T) m.invoke(o);
+    }
+
+    /*package*/ static String getCallerMethodName() {
+        StackTraceElement[] elements = Thread.currentThread().getStackTrace();
+        return elements[3].getMethodName();
+    }
+
+    /*package*/ static Field getField(Object o, String fieldname) throws NoSuchFieldException {
+        for (Class cls = o.getClass(); cls.getSuperclass() != null; cls = cls.getSuperclass()) {
+            try {
+                return cls.getDeclaredField(fieldname);
+            } catch (NoSuchFieldException e) {
+                // continue to superclass
+            }
+        }
+        throw new NoSuchFieldException();
+    }
 
 }

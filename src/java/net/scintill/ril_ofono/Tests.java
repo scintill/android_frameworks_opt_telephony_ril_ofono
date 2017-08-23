@@ -32,10 +32,10 @@ public class Tests implements Runnable {
 
     private static final String TAG = "RilOfono Tests";
 
-    RilOfono mRil;
+    SmsModule mSmsModule;
 
-    public Tests(RilOfono ril) {
-        mRil = ril;
+    public Tests(SmsModule ril) {
+        mSmsModule = ril;
     }
 
     @Override
@@ -55,10 +55,10 @@ public class Tests implements Runnable {
         info.put("SentTime", new Variant<>(Utils.formatOfonoDate(date)));
         if (!immediate) {
             MessageManager.IncomingMessage s = new MessageManager.IncomingMessage("/", text, info);
-            mRil.handle(s);
+            mSmsModule.handle(s);
         } else {
             MessageManager.ImmediateMessage s = new MessageManager.ImmediateMessage("/", text, info);
-            mRil.handle(s);
+            mSmsModule.handle(s);
         }
     }
 

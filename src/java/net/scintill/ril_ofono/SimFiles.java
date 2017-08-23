@@ -32,6 +32,7 @@ import org.freedesktop.dbus.Variant;
 import java.util.Map;
 
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
+import static net.scintill.ril_ofono.PropManager.getProp;
 
 /*package*/ class SimFiles {
 
@@ -86,7 +87,7 @@ import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_
     private SimFile getSimFile(String path, int fileid) {
         SimFile file = new SimFile();
         if (path.equals(IccConstants.MF_SIM) && fileid == IccConstants.EF_ICCID) {
-            String iccid = RilOfono.getProp(mSimProps, "CardIdentifier", (String)null);
+            String iccid = getProp(mSimProps, "CardIdentifier", (String)null);
             if (!TextUtils.isEmpty(iccid)) {
                 file.mType = TYPE_EF;
                 file.mResponseDataStructure = EF_TYPE_TRANSPARENT;
@@ -95,7 +96,7 @@ import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_
             }
         } else if (path.equals(IccConstants.MF_SIM + IccConstants.DF_TELECOM)) {
             if (fileid == IccConstants.EF_MSISDN) {
-                String[] numbers = RilOfono.getProp(mSimProps, "SubscriberNumbers", new String[0]);
+                String[] numbers = getProp(mSimProps, "SubscriberNumbers", new String[0]);
                 if (numbers.length > 0) {
                     file.mType = TYPE_EF;
                     file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
@@ -104,7 +105,7 @@ import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_
                 }
             }
         } else if (path.equals(IccConstants.MF_SIM + IccConstants.DF_GSM)) {
-            String voicemailNumber = RilOfono.getProp(mMsgWaitingProps, "VoicemailMailboxNumber", "");
+            String voicemailNumber = getProp(mMsgWaitingProps, "VoicemailMailboxNumber", "");
             if (fileid == IccConstants.EF_MBI) {
                 // TS 151 011
                 if (!TextUtils.isEmpty(voicemailNumber)) {
