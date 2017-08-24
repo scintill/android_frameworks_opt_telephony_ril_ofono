@@ -36,8 +36,11 @@ import java.util.List;
 import java.util.Map;
 
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_EDGE;
+import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_GPRS;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_GSM;
+import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_HSDPA;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_HSPA;
+import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_HSUPA;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_LTE;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UMTS;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
@@ -74,19 +77,19 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         mirrorProps(NetworkRegistration.class, mNetReg, NetworkRegistration.PropertyChanged.class, mNetRegProps);
     }
 
-    // Ril entry point
+    @RilMethod
     public void getIMEI(Message result) {
         // TODO GSM-specific?
         respondOk("getIMEI", result, new PrivResponseOb(getProp(mModemProps, "Serial", "")), true);
     }
 
-    // Ril entry point
+    @RilMethod
     public void getIMEISV(Message result) {
         // TODO GSM-specific?
         respondOk("getIMEISV", result, new PrivResponseOb(getProp(mModemProps, "SoftwareVersionNumber", "")), true);
     }
 
-    // Ril entry point
+    @RilMethod
     public void getSignalStrength(Message response) {
         // TODO I can't seem to find this on the ofono bus, but supposedly it's supported
         // make up a low strength
@@ -94,7 +97,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         respondOk("getSignalStrength", response, s, true);
     }
 
-    // Ril entry point
+    @RilMethod
     public void getVoiceRegistrationState(Message response) {
         OfonoRegistrationState state = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown);
         if (!state.isRegistered()) {
@@ -103,21 +106,21 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             respondOk("getVoiceRegistrationState", response, new PrivResponseOb(new String[]{
                     ""+state.ts27007Creg,
                     getProp(mNetRegProps, "LocationAreaCode", "-1"),
-                    getProp(mNetRegProps, "CellId", "-1")
+                    getProp(mNetRegProps, "CellId", "-1"),
+                    ""+getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown).serviceStateInt,
             }));
         }
     }
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private final String STAR_EMOJI = "🌠"; // make it obvious we're running this RIL
-
-    // Ril entry point
+    @RilMethod
     public void getOperator(Message response) {
+        String STAR_EMOJI = "🌠";
+
         boolean registered = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown).isRegistered();
         String name = getProp(mNetRegProps, "Name", "");
         String mcc = getProp(mNetRegProps, "MobileCountryCode", "");
         String mnc = getProp(mNetRegProps, "MobileNetworkCode", "");
-        name = STAR_EMOJI + name + STAR_EMOJI;
+        name = STAR_EMOJI + name + STAR_EMOJI; // make it obvious we're running this RIL
         if (registered && mcc.length() > 0 && mnc.length() > 0 && name.length() > 0) {
             respondOk("getOperator", response, new String[] {
                     name, name, /* TODO does Ofono offer distinct short and long names? */
@@ -128,7 +131,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    // Ril entry point
+    @RilMethod
     public void setRadioPower(final boolean on, final Message response) {
         Rlog.v(TAG, "setRadioPower("+on+")");
 
@@ -141,7 +144,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         });
     }
 
-    // Ril entry point
+    @RilMethod
     public void getNetworkSelectionMode(Message response) {
         String mode = getProp(mNetRegProps, "Mode", (String)null);
         if (mode == null) {
@@ -151,12 +154,12 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    // Ril entry point
+    @RilMethod
     public void getBasebandVersion(Message response) {
         respondOk("getBaseBandVersion", response, getProp(mModemProps, "Revision", ""), true);
     }
 
-    // Ril entry point
+    @RilMethod
     public void getVoiceRadioTechnology(Message result) {
         respondOk("getVoiceRadioTechnology", result, getVoiceRadioTechnologyAsyncResult());
     }
@@ -236,10 +239,21 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     enum OfonoNetworkTechnology {
         gsm(RIL_RADIO_TECHNOLOGY_GSM), edge(RIL_RADIO_TECHNOLOGY_EDGE), umts(RIL_RADIO_TECHNOLOGY_UMTS),
         hspa(RIL_RADIO_TECHNOLOGY_HSPA), lte(RIL_RADIO_TECHNOLOGY_LTE),
-        _unknown(RIL_RADIO_TECHNOLOGY_UNKNOWN);
+        _unknown(RIL_RADIO_TECHNOLOGY_UNKNOWN), none(RIL_RADIO_TECHNOLOGY_UNKNOWN),
+        gprs(RIL_RADIO_TECHNOLOGY_GPRS), hsdpa(RIL_RADIO_TECHNOLOGY_HSDPA), hsupa(RIL_RADIO_TECHNOLOGY_HSUPA),
+        ;
         public int serviceStateInt;
         OfonoNetworkTechnology(int serviceStateInt) {
             this.serviceStateInt = serviceStateInt;
+        }
+        static OfonoNetworkTechnology fromSetupDataCallValue(int i) {
+            for (OfonoNetworkTechnology tech : values()) {
+                // see DataConnection#getDataTechnology
+                if (tech.serviceStateInt + 2 == i) {
+                    return tech;
+                }
+            }
+            return null;
         }
     }
 

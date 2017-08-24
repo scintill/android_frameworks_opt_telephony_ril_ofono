@@ -3,6 +3,7 @@ import java.util.List;
 import java.util.Map;
 import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSignal;
+import org.freedesktop.dbus.Path;
 import org.freedesktop.dbus.Variant;
 import org.freedesktop.dbus.exceptions.DBusException;
 public interface ConnectionManager extends DBusInterface
@@ -20,9 +21,9 @@ public interface ConnectionManager extends DBusInterface
    }
    public static class ContextAdded extends DBusSignal
    {
-      public final DBusInterface path;
+      public final Path path;
       public final Map<String,Variant> properties;
-      public ContextAdded(String path, DBusInterface path2, Map<String,Variant> properties) throws DBusException
+      public ContextAdded(String path, Path path2, Map<String,Variant> properties) throws DBusException
       {
          super(path, path2, properties);
          this.path = path2;
@@ -31,8 +32,8 @@ public interface ConnectionManager extends DBusInterface
    }
    public static class ContextRemoved extends DBusSignal
    {
-      public final DBusInterface path;
-      public ContextRemoved(String path, DBusInterface path2) throws DBusException
+      public final Path path;
+      public ContextRemoved(String path, Path path2) throws DBusException
       {
          super(path, path2);
          this.path = path2;
@@ -41,10 +42,10 @@ public interface ConnectionManager extends DBusInterface
 
   public Map<String,Variant> GetProperties();
   public void SetProperty(String property, Variant value);
-  public DBusInterface AddContext(String type);
-  public void RemoveContext(DBusInterface path);
+  public Path AddContext(String type);
+  public void RemoveContext(Path path);
   public void DeactivateAll();
-  public List<Struct5> GetContexts();
+  public List<StructPathAndProps> GetContexts();
   public void ResetContexts();
 
 }

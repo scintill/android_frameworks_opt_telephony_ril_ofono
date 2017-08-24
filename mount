@@ -5,6 +5,7 @@ CMBASE=$(realpath $ANDROID_PRODUCT_OUT/../../../../)
 
 sudo mount -t overlay overlay -o ro -olowerdir=\
 $CMBASE/frameworks/base/core/java:\
+$CMBASE/frameworks/base/services/core/java:\
 $CMBASE/frameworks/base/telephony/java:\
 $CMBASE/frameworks/base/telecomm/java:\
 $CMBASE/frameworks/opt/telephony/src/java:\

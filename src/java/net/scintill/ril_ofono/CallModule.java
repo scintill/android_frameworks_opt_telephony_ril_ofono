@@ -69,11 +69,11 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         RilOfono.sInstance.registerDbusSignal(VoiceCallManager.CallRemoved.class, this);
     }
 
-    // Ril entry point
+    @RilMethod
     public void getCurrentCalls(Message result) {
         try {
             List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
-            Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
+            //Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
             for (Map<String, Variant> callProps : mCallsProps.values()) {
                 DriverCall call = new DriverCall();
                 call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
@@ -151,7 +151,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return null;
     }
 
-    // Ril entry point
+    @RilMethod
     public void dial(final String address, int clirMode, final Message result) {
         final String clirModeStr;
         switch (clirMode) {
@@ -180,7 +180,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         });
     }
 
-    // Ril entry point
+    @RilMethod
     public void dial(String address, int clirMode, UUSInfo uusInfo, Message result) {
         if (uusInfo != null) {
             respondExc("dial", result, MODE_NOT_SUPPORTED, null);
@@ -189,7 +189,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    // Ril entry point
+    @RilMethod
     public void hangupConnection(final int gsmIndex, final Message result) {
         runOnDbusThread(new Runnable() {
             @Override
@@ -211,7 +211,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         });
     }
 
-    // Ril entry point
+    @RilMethod
     public void hangupWaitingOrBackground(final Message result) {
         runOnDbusThread(new Runnable() {
             @Override
@@ -253,7 +253,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         });
     }
 
-    // Ril entry point
+    @RilMethod
     public void acceptCall(final Message result) {
         runOnDbusThread(new Runnable() {
             @Override
@@ -276,7 +276,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         });
     }
 
-    // Ril entry point
+    @RilMethod
     public void rejectCall(Message result) {
         // TODO RIL.java sends UDUB, which may not be the same as what we're indirectly asking oFono to do here
         hangupWaitingOrBackground(result);

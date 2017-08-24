@@ -44,7 +44,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
 
     private static final String TAG = RilOfono.TAG;
 
-    private static void handlePropChange(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
+    private static void logAndUpdateProp(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
         Rlog.v(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToUpdate) {
@@ -57,7 +57,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         if (propsToUpdate == null) {
             propsToUpdateRoot.put(keyToUpdate, propsToUpdate = new HashMap<>());
         }
-        handlePropChange(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
+        logAndUpdateProp(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
     }
 
     protected static void putOrMerge2dProps(Map<String, Map<String, Variant>> rootProps, String key, Map<String, Variant> props) {
@@ -101,7 +101,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
             try {
                 Method m = this.getClass().getDeclaredMethod("onPropChange", sourceObIface, String.class, Variant.class);
                 for (Map.Entry<String, Variant> entry : props.entrySet()) {
-                    propsToInit.put(entry.getKey(), entry.getValue());
+                    logAndUpdateProp(propsToInit, sourceObIface.getSimpleName()+"#init", entry.getKey(), entry.getValue());
                     m.invoke(this, sourceOb, entry.getKey(), entry.getValue());
                 }
             } catch (NoSuchMethodException | IllegalAccessException e) {
@@ -127,7 +127,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
                     try {
                         String name = (String)fName.get(s);
                         Variant value = (Variant)fValue.get(s);
-                        handlePropChange(props, sourceObIface.getSimpleName(), name, value);
+                        logAndUpdateProp(props, sourceObIface.getSimpleName(), name, value);
                         mtOnPropChange.invoke(PropManager.this, sourceOb, name, value);
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException("unable to handle propchange signal", e);

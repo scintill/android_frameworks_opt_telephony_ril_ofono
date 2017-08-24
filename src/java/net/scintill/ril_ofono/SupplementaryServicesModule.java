@@ -47,7 +47,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
         mSupplSvcs = RilOfono.sInstance.getOfonoInterface(SupplementaryServices.class);
     }
 
-    // Ril entrypoint
+    @RilMethod
     public void sendUSSD(final String ussdString, final Message response) {
         // TODO network-initiated USSD. apparently they're rare, and it doesn't look like the rild backend of oFono supports them
         runOnDbusThread(new Runnable() {

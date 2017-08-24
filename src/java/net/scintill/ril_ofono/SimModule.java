@@ -64,12 +64,12 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         mirrorProps(MessageWaiting.class, mMsgWaiting, MessageWaiting.PropertyChanged.class, mMsgWaitingProps);
     }
 
-    // Ril entrypoint
+    @RilMethod
     public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message response) {
         mSimFiles.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, response);
     }
 
-    // Ril entrypoint
+    @RilMethod
     public void getIMSIForApp(String aid, Message result) {
         // TODO GSM-specific?
         String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
@@ -80,7 +80,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    // Ril entrypoint
+    @RilMethod
     public void getIccCardStatus(Message result) {
         // TODO GSM-specific? can we/should we do more?
         IccCardStatus cardStatus = new IccCardStatus();

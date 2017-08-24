@@ -70,7 +70,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
         RilOfono.sInstance.registerDbusSignal(org.ofono.Message.PropertyChanged.class, this);
     }
 
-    // RIL entrypoint
+    @RilMethod
     public void sendSMS(String smscPDUStr, String pduStr, final Message response) {
         Rlog.d(TAG, "sendSMS");
         // TODO gsm-specific?
