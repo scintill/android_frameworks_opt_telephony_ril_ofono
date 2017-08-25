@@ -53,9 +53,7 @@ Nothing is thoroughly tested nor tried on a broad selection of hardware/networks
 * https://github.com/nitdroid/ofono-ril for some help on mapping ofono properties to Android RIL
 
 # Bugs and TODO
-* SMS send/receive - current implementation is limited when it comes to things like long messages. We could
-concatenate/split PDUs in the RIL to map on to Ofono's nice API, but we will not be able to implement a few things
-that raw PDUs can do. And duplicating the work is ugly anyway, so I think I will just patch Ofono with raw PDU APIs.
+* SMS receive - current implementation can't receive long messages
 * look at and fix flaky data call setup. It seems the framework doesn't ask us to set up a connection, even if the user toggles the data slider.
 	* Toggling airplane mode, or restarting com.android.phone with the slider on, may help as workarounds.
 	* Also, turning off wifi may be needed to make sure the framework has a reason to enable mobile data
@@ -63,7 +61,13 @@ that raw PDUs can do. And duplicating the work is ugly anyway, so I think I will
 * dexopt/proguard? - see notes in Android.mk
 * crashes in airplane mode trying to query properties on probably not-up interfaces
 * remove anonymous auth from dbus.conf (currently there to ease debugging; not needed for the RIL code to connect properly)
-* `init: Warning!  Service ofonod-debug needs a SELinux domain defined; please fix!`
+* `init: Warning!  Service ofonod-debug needs a SELinux domain defined; please fix!` (probably prevents the debugger from being able to ptrace and dump info if ofonod crashes)
+
+# Code review
+
+These should be reviewed more closely for correctness and safety:
+
+* My changes to oFono (logging, SMS PDU patches)
 
 # License
 

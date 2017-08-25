@@ -42,7 +42,6 @@ import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
-import static com.android.internal.telephony.CommandException.Error.INVALID_PARAMETER;
 import static net.scintill.ril_ofono.PropManager.getProp;
 import static net.scintill.ril_ofono.RilOfono.respondExc;
 import static net.scintill.ril_ofono.RilOfono.respondOk;
@@ -74,30 +73,28 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
     public void sendSMS(String smscPDUStr, String pduStr, final Message response) {
         Rlog.d(TAG, "sendSMS");
         // TODO gsm-specific?
-        // TODO is there a way to preserve the whole pdu to ofono? should we check for special things that ofono won't do, and refuse to send if the PDU contains them?
+        if (smscPDUStr == null) smscPDUStr = "00";
 
-        final SmsMessage msg = parseSmsPduStrs(smscPDUStr, pduStr);
+        final byte[] smscPDU = IccUtils.hexStringToBytes(smscPDUStr);
+        final byte[] pdu = IccUtils.hexStringToBytes(pduStr);
 
-        if (msg == null || msg.getRecipientAddress() == null || msg.getMessageBody() == null) {
-            respondExc("sendSMS", response, INVALID_PARAMETER, null);
-        } else {
-            runOnDbusThread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        synchronized (mMapSmsDbusPathToSenderCallback) {
-                            // TODO timeout on this method? at least we're not on the main thread,
-                            // but we could block anything else trying to get on the dbus thread
-                            Path sentMessage = mMessenger.SendMessage(msg.getRecipientAddress(), msg.getMessageBody());
-                            mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), response);
-                        }
-                    } catch (Throwable t) {
-                        Rlog.e(TAG, "Error sending msg", t);
-                        respondExc("sendSMS", response, GENERIC_FAILURE, null);
+        runOnDbusThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    synchronized (mMapSmsDbusPathToSenderCallback) {
+                        // TODO timeout on this method? at least we're not on the main thread,
+                        // but we could block anything else trying to get on the dbus thread
+                        Path sentMessage = mMessenger.SendPdu(smscPDU, pdu);
+                        mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), response);
                     }
+                } catch (Throwable t) {
+                    // TODO catch format errors that oFono found and return a better error code?
+                    Rlog.e(TAG, "Error sending msg", t);
+                    respondExc("sendSMS", response, GENERIC_FAILURE, null);
                 }
-            });
-        }
+            }
+        });
     }
 
     public void handleSendSmsComplete(String msgDbusPath, String status) {
@@ -156,18 +153,6 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
             if (value.equals("sent") || value.equals("failed")) {
                 handleSendSmsComplete(s.getPath(), value);
             }
-        }
-    }
-
-    private SmsMessage parseSmsPduStrs(String smscPDUStr, String pduStr) {
-        if (smscPDUStr == null) {
-            smscPDUStr = "00"; // see PduParser; means no smsc
-        }
-        try {
-            return SmsMessage.createFromPdu(IccUtils.hexStringToBytes(smscPDUStr + pduStr), SmsConstants.FORMAT_3GPP);
-        } catch (Throwable t) {
-            // SmsMessage should have logged information about the error
-            return null;
         }
     }
 
