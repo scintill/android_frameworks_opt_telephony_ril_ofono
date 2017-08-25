@@ -26,6 +26,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
 import android.os.Registrant;
+import android.os.StrictMode;
 import android.telephony.Rlog;
 import android.text.TextUtils;
 
@@ -92,25 +93,33 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
         mPhoneType = RILConstants.NO_PHONE;
 
-        HandlerThread dbusThread = new HandlerThread("dbus");
+        HandlerThread dbusThread = new HandlerThread("RilOfonoDbusThread");
         dbusThread.start();
         mMainHandler = new Handler(new EmptyHandlerCallback());
         mDbusHandler = new Handler(dbusThread.getLooper(), new EmptyHandlerCallback());
 
-        try {
-            mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
-        } catch (DBusException e) {
-            logException("RilOfono", e);
-            System.exit(-1); // XXX how to better react to this?
-        }
-        mModemModule = new ModemModule(mVoiceNetworkStateRegistrants, mVoiceRadioTechChangedRegistrants);
-        mSmsModule = new SmsModule(new DynamicRegistrantListFromField("mGsmSmsRegistrant")); // TODO gsm-specific
-        mSimModule = new SimModule(mIccStatusChangedRegistrants);
-        mCallModule = new CallModule(mCallStateRegistrants);
-        mDataConnModule = new DataConnModule(mDataNetworkStateRegistrants);
-        mSupplSvcsModule = new SupplementaryServicesModule(new DynamicRegistrantListFromField("mUSSDRegistrant"));
-        mModemModule.onModemChange(false); // initialize starting state
+        // We can't really return until the objects below are created
+        // (otherwise calls start coming in while we have null pointers), and the objects need dbus,
+        // so this is one time we'll allow network on main.
+        runWithNetworkPermittedOnMainThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
 
+                    mModemModule = new ModemModule(mVoiceNetworkStateRegistrants, mVoiceRadioTechChangedRegistrants);
+                    mSmsModule = new SmsModule(new DynamicRegistrantListFromField("mGsmSmsRegistrant")); // TODO gsm-specific
+                    mSimModule = new SimModule(mIccStatusChangedRegistrants);
+                    mCallModule = new CallModule(mCallStateRegistrants);
+                    mDataConnModule = new DataConnModule(mDataNetworkStateRegistrants);
+                    mSupplSvcsModule = new SupplementaryServicesModule(new DynamicRegistrantListFromField("mUSSDRegistrant"));
+                    mModemModule.onModemChange(false); // initialize starting state
+                } catch (DBusException e) {
+                    logException("RilOfono", e);
+                    System.exit(-1); // XXX how to better react to this?
+                }
+            }
+        });
         // TODO register with TelephonyDevController ?
 
         //mMainHandler.postDelayed(new Tests(mSmsModule), 10000);
@@ -1160,6 +1169,19 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
             } catch (IllegalAccessException e) {
                 throw new RuntimeException("unable to get registrant", e);
             }
+        }
+    }
+
+    private static void runWithNetworkPermittedOnMainThread(Runnable r) {
+        StrictMode.ThreadPolicy standardPolicy = StrictMode.getThreadPolicy();
+        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder(standardPolicy)
+                .permitNetwork()
+                .build());
+
+        try {
+            r.run();
+        } finally {
+            StrictMode.setThreadPolicy(standardPolicy);
         }
     }
 
