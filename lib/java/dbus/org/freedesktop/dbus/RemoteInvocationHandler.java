@@ -26,6 +26,7 @@ import org.freedesktop.dbus.exceptions.DBusExecutionException;
 import org.freedesktop.dbus.exceptions.NotConnected;
 
 import cx.ath.matthew.debug.Debug;
+import dalvik.system.BlockGuard;
 
 class RemoteInvocationHandler implements InvocationHandler
 {
@@ -128,6 +129,9 @@ class RemoteInvocationHandler implements InvocationHandler
 
       // get reply
       if (m.isAnnotationPresent(DBus.Method.NoReply.class)) return null;
+
+      // the IO is actually done on the queue thread, but we're blocking on it, so it's basically the same
+      BlockGuard.getThreadPolicy().onNetwork();
 
       Message reply = call.getReply();
       if (null == reply) throw new DBus.Error.NoReply(_("No reply within specified time"));

@@ -10,8 +10,8 @@
 */
 package org.freedesktop.dbus;
 
-import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
+import net.scintill.LocalSocket;
 
 import static org.freedesktop.dbus.Gettext._;
 
@@ -749,7 +749,7 @@ public class Transport
                localSocket.connect(new LocalSocketAddress(address.getParameter("abstract"), LocalSocketAddress.Namespace.ABSTRACT));
             else if (null != address.getParameter("path"))
                localSocket.connect(new LocalSocketAddress(address.getParameter("path"), LocalSocketAddress.Namespace.FILESYSTEM));
-            in = fixLocalSocketBug(localSocket.getInputStream());
+            in = localSocket.getInputStream();
             out = localSocket.getOutputStream();
          }
       } else if ("tcp".equals(address.getType())) {
@@ -789,60 +789,6 @@ public class Transport
       if (Debug.debug) Debug.print(Debug.INFO, "Disconnecting Transport");
       min.close();
       mout.close();
-   }
-
-   private InputStream fixLocalSocketBug(final InputStream is) {
-      // XXX eww, we have to copy the overrides from LocalSocketImpl's impl to be sure we don't change any behavior
-      return new InputStream() {
-         @Override
-         public int available() throws IOException {
-            return is.available();
-         }
-
-         /** {@inheritDoc} */
-         @Override
-         public void close() throws IOException {
-            is.close();
-         }
-
-         /** {@inheritDoc} */
-         @Override
-         public int read() throws IOException {
-            try {
-               return is.read();
-            } catch (IOException e) {
-               throw convertTimeout(e);
-            }
-         }
-
-         /** {@inheritDoc} */
-         @Override
-         public int read(byte[] b) throws IOException {
-            try {
-               return is.read(b);
-            } catch (IOException e) {
-               throw convertTimeout(e);
-            }
-         }
-
-         /** {@inheritDoc} */
-         @Override
-         public int read(byte[] b, int off, int len) throws IOException {
-            try {
-               return is.read(b, off, len);
-            } catch (IOException e) {
-               throw convertTimeout(e);
-            }
-         }
-
-         private IOException convertTimeout(IOException e) {
-            if (e.getMessage().equals("Try again")) {
-               return new SocketTimeoutException();
-            } else {
-               return e;
-            }
-         }
-      };
    }
 }
 
