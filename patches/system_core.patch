@@ -1,0 +1,35 @@
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 001ab13..6029d3c 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -561,6 +561,30 @@ service ril-daemon /system/bin/rild
+     user root
+     group radio cache inet misc audio sdcard_rw qcom_diag log
+ 
++service dbus /system/bin/dbus-daemon --system --nofork
++    class main
++    socket dbus stream 0660 root radio
++    user radio
++    group radio
++
++service ofonod /system/bin/ofonod --nodetach
++	disabled
++	class main
++	user radio
++	group radio
++	setenv OFONO_RIL_DEVICE ril
++	setenv OFONO_RIL_RAT_LTE 1
++
++service ofonod-debug /system/bin/ofonod --nodetach --debug
++	disabled
++	class main
++	user radio
++	group radio
++	setenv OFONO_RIL_DEVICE ril
++	setenv OFONO_RIL_RAT_LTE 1
++	setenv OFONO_RIL_TRACE 1
++	setenv OFONO_RIL_HEX_TRACE 1
++
+ service surfaceflinger /system/bin/surfaceflinger
+     class core
+     user system

@@ -15,11 +15,11 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 
 # Usage
 1. System patches
-	* See `patches` file for pseudo-patches to get an idea of what I'm running
-		* Patch telephony framework to be able to load the RIL class from another package
-	* system/core/rootdir/init.rc - add dbus and ofono services
-	* install dbus conf file in /system/etc/dbus.conf
-	* sepolicy updates for dbus and radio interop
+	* See `patches` directory. The patches:
+		* Change the telephony framework to be able to load the RIL class from a system app package, specified by system property (set in `start` script)
+		* Add dbus and ofono services in the init.rc (ofono is disabled until manually started)
+		* Add a dbus conf file in /system/etc
+		* Update selinux policies for dbus and radio interop
 1. Build from CM12.1 checkout with [this manifest](https://github.com/scintill/android/commit/424776d7635ddfae3591516e032cc5820f1dfc1a)
 	* `mmm ~/ril_ofono`
 	* (Might depend on the rest of android or at least RIL having been built before.)
@@ -62,6 +62,8 @@ that raw PDUs can do. And duplicating the work is ugly anyway, so I think I will
 * make dbus exceptions be checked exceptions, so the compiler will find them and I have to handle them
 * dexopt/proguard? - see notes in Android.mk
 * crashes in airplane mode trying to query properties on probably not-up interfaces
+* remove anonymous auth from dbus.conf (currently there to ease debugging; not needed for the RIL code to connect properly)
+* `init: Warning!  Service ofonod-debug needs a SELinux domain defined; please fix!`
 
 # License
 

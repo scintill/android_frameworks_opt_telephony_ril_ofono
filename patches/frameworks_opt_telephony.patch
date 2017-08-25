@@ -1,4 +1,3 @@
-# frameworks/opt/telephony
 diff --git a/src/java/com/android/internal/telephony/PhoneFactory.java b/src/java/com/android/internal/telephony/PhoneFactory.java
 index 08ea27c..0d5d84c 100644
 --- a/src/java/com/android/internal/telephony/PhoneFactory.java
