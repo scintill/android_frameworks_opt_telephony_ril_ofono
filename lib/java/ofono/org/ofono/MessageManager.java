@@ -30,6 +30,17 @@ public interface MessageManager extends DBusInterface
          this.info = info;
       }
    }
+   public static class IncomingPdu extends DBusSignal
+   {
+      public final byte[] pdu;
+      public final byte tpdu_len;
+      public IncomingPdu(String path, byte[] pdu, byte tpdu_len) throws DBusException
+      {
+         super(path, pdu, tpdu_len);
+         this.pdu = pdu;
+         this.tpdu_len = tpdu_len;
+      }
+   }
    public static class ImmediateMessage extends DBusSignal
    {
       public final String message;

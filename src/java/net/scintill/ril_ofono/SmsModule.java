@@ -20,7 +20,6 @@
 package net.scintill.ril_ofono;
 
 import android.os.Message;
-import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
 import android.telephony.SmsMessage;
 
@@ -29,20 +28,14 @@ import com.android.internal.telephony.SmsConstants;
 import com.android.internal.telephony.SmsResponse;
 
 import org.freedesktop.dbus.Path;
-import org.freedesktop.dbus.Variant;
 import org.ofono.MessageManager;
 
-import java.io.ByteArrayOutputStream;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
-import static net.scintill.ril_ofono.PropManager.getProp;
+import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.respondExc;
 import static net.scintill.ril_ofono.RilOfono.respondOk;
 import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
@@ -64,8 +57,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
         mSmsRegistrants = smsRegistrants;
 
         mMessenger = RilOfono.sInstance.getOfonoInterface(MessageManager.class);
-        RilOfono.sInstance.registerDbusSignal(MessageManager.IncomingMessage.class, this);
-        RilOfono.sInstance.registerDbusSignal(MessageManager.ImmediateMessage.class, this);
+        RilOfono.sInstance.registerDbusSignal(MessageManager.IncomingPdu.class, this);
         RilOfono.sInstance.registerDbusSignal(org.ofono.Message.PropertyChanged.class, this);
     }
 
@@ -117,34 +109,17 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
         }
     }
 
-    private void handleIncomingMessage(String content, Map<String, Variant> info) {
-        String dateStr = (String) info.get("SentTime").getValue();
-        String sender = (String) info.get("Sender").getValue();
-
-        //Rlog.d(TAG, "handleIncomingMessage "+privStr(sender)+" "+dateStr+" "+privStr(content));
-
-        Date date = Utils.parseOfonoDate(dateStr);
-        if (date == null) {
-            Rlog.e(TAG, "error parsing SMS date "+dateStr);
-            date = new Date();
-        }
-
-        final Object msg = createReceivedMessage(sender, content, date, getProp(info, "Immediate", false));
+    public void handle(final MessageManager.IncomingPdu s) {
         runOnMainThread(new Runnable() {
             @Override
             public void run() {
-                mSmsRegistrants.notifyResult(msg);
+                try {
+                    mSmsRegistrants.notifyResult(SmsMessage.createFromPdu(s.pdu, SmsConstants.FORMAT_3GPP));
+                } catch (Throwable t) {
+                    Rlog.e(TAG, "Error parsing incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)), t);
+                }
             }
         });
-    }
-
-    public void handle(MessageManager.IncomingMessage s) {
-        handleIncomingMessage(s.message, s.info);
-    }
-
-    public void handle(MessageManager.ImmediateMessage s) {
-        s.info.put("Immediate", new Variant<>(true));
-        handleIncomingMessage(s.message, s.info);
     }
 
     public void handle(org.ofono.Message.PropertyChanged s) {
@@ -154,61 +129,6 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
                 handleSendSmsComplete(s.getPath(), value);
             }
         }
-    }
-
-    private SmsMessage createReceivedMessage(String sender, String contentText, Date date, boolean immediate) {
-        try {
-            // see SmsMessage#parsePdu
-            ByteArrayOutputStream os = new ByteArrayOutputStream();
-            os.write(new byte[] {
-                    0x00, // null sc address
-                    0x00, // deliver type. no reply path or user header
-            });
-            byte[] bcdSender = PhoneNumberUtils.networkPortionToCalledPartyBCD(sender);
-            os.write((bcdSender.length - 1) * 2); // BCD digit count, excluding TOA.
-            os.write(bcdSender);
-
-            // build a submit pdu so it will encode the message for us
-            // it turned out to not be as convenient as I hoped, but probably still better than
-            // writing/copying here
-            com.android.internal.telephony.gsm.SmsMessage.SubmitPdu submitPduOb =
-                    com.android.internal.telephony.gsm.SmsMessage.getSubmitPdu(null, "0", contentText, false);
-            byte[] submitPdu = new byte[1 + submitPduOb.encodedMessage.length];
-            submitPdu[0] = 0x00; // null sc adddr, so it will parse below
-            System.arraycopy(submitPduOb.encodedMessage, 0, submitPdu, 1, submitPduOb.encodedMessage.length);
-            com.android.internal.telephony.gsm.SmsMessage msg =
-                    com.android.internal.telephony.gsm.SmsMessage.createFromPdu(submitPdu);
-            if (msg == null) throw new RuntimeException("unable to parse submit pdu to create deliver pdu");
-
-            // finish writing the deliver
-            int dataCodingScheme = Utils.callPrivateMethod(msg, Integer.class, "getDataCodingScheme");
-            os.write(new byte[]{
-                    0x00, // protocol identifier
-                    (byte) (dataCodingScheme | (immediate ? 0x10 : 0))
-            });
-            os.write(getScTimestamp(date));
-            byte[] payload = msg.getUserData();
-            os.write(AospUtils.getEncodingType(dataCodingScheme) != SmsConstants.ENCODING_7BIT ?
-                    payload.length : // octet length
-                    // septet length - we can't tell how many meaningful septets there are, but
-                    // I think in the case of 7bit it will always be the length of the string
-                    contentText.length());
-            os.write(payload);
-            return SmsMessage.createFromPdu(os.toByteArray(), SmsConstants.FORMAT_3GPP);
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private static byte[] getScTimestamp(Date d) {
-        // opposite of SmsMessage#getSCTimestampMillis()
-        // value is BCD nibble-swapped ymdhmszz (z = zone)
-        SimpleDateFormat fmt = new SimpleDateFormat("ssmmHHddMMyy", Locale.US);
-        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
-        StringBuilder b = new StringBuilder(fmt.format(d));
-        b.reverse();
-        b.append("00"); // TODO preserve real tz?
-        return IccUtils.hexStringToBytes(b.toString());
     }
 
 }

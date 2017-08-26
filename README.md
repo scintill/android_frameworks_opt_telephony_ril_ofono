@@ -1,6 +1,6 @@
 # Goal
 
-The goal of this project is to write an Android RIL daemon implemented on top of [oFono](https://01.org/ofono), with a focus on supporting Qualcomm phones.
+The goal of this project is to write an Android RIL daemon implemented on top of [oFono](https://01.org/ofono), with a focus on supporting Qualcomm phones. I've forked oFono [here](https://github.com/scintill/android_external_ofono) to add Android-specific support and some raw SMS patches, but I intend to keep it pretty close to the mainline.
 
 # Roadmap
 
@@ -38,10 +38,9 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 
 # Features
 
-Nothing is thoroughly tested nor tried on a broad selection of hardware/networks yet.
+Nothing is thoroughly tested nor tried on a broad selection of hardware/networks yet, but here's what's been implemented:
 
-* Basic SMS sending and receiving
-	* Has issues with long messages (sending a long message will work, but it will arrive fragmented; receiving a long one will not work at all); see TODO below
+* Basic SMS sending and receiving (multipart messages and some international characters tested)
 * Basic voicecalls: dialing, receiving, answering, rejecting
 	* On my device, oFono seems unable to give Line ID (I think it's a RIL parcel mismatch), so numbers are displayed as "Unknown"
 * User-intiated USSD (special dial codes, such as `#999#` which displays balance on my carrier)
@@ -53,7 +52,6 @@ Nothing is thoroughly tested nor tried on a broad selection of hardware/networks
 * https://github.com/nitdroid/ofono-ril for some help on mapping ofono properties to Android RIL
 
 # Bugs and TODO
-* SMS receive - current implementation can't receive long messages
 * look at and fix flaky data call setup. It seems the framework doesn't ask us to set up a connection, even if the user toggles the data slider.
 	* Toggling airplane mode, or restarting com.android.phone with the slider on, may help as workarounds.
 	* Also, turning off wifi may be needed to make sure the framework has a reason to enable mobile data

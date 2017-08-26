@@ -32,7 +32,7 @@ import java.util.Date;
 
 public abstract class Utils {
 
-    private static final String TAG = "OfonoUtils";
+    private static final String TAG = RilOfono.TAG;
 
     static final SimpleDateFormat FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZZZ");
 
