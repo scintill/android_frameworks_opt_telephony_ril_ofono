@@ -57,6 +57,10 @@ public class Tests implements Runnable {
 
     private void injectReceivedMessage(String sender, String text, Date date, boolean immediate) throws Throwable {
         byte[] pdu = createReceivedMessage(sender, text, date, immediate);
+        injectReceivedMessage(pdu);
+    }
+
+    private void injectReceivedMessage(byte[] pdu) throws Throwable {
         MessageManager.IncomingPdu s = new MessageManager.IncomingPdu("/", pdu, (byte)((pdu.length-1) & 0xff));
         mSmsModule.handle(s);
     }

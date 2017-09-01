@@ -114,12 +114,32 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
             @Override
             public void run() {
                 try {
-                    mSmsRegistrants.notifyResult(SmsMessage.createFromPdu(s.pdu, SmsConstants.FORMAT_3GPP));
+                    SmsMessage msg = SmsMessage.createFromPdu(normalizePdu(s.pdu, s.tpdu_len), SmsConstants.FORMAT_3GPP);
+                    try {
+                        // someone decided to swallow exceptions and return null as the wrapped object, so check it
+                        if (msg != null) msg.getTimestampMillis();
+                    } catch (NullPointerException e) {
+                        // SmsMessage probably logged more information about the cause, but I want to know what the PDU was
+                        Rlog.e(TAG, "Null returned from parsing incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)+" tpdu_len="+s.tpdu_len));
+                    }
+                    mSmsRegistrants.notifyResult(msg);
                 } catch (Throwable t) {
-                    Rlog.e(TAG, "Error parsing incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)), t);
+                    Rlog.e(TAG, "Error handling incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)+" tpdu_len="+s.tpdu_len));
                 }
             }
         });
+    }
+
+    private static byte[] normalizePdu(byte[] pdu, int tpdu_len) {
+        // pdu might have smsc prefixed. Android PDU parser assumes it's always there
+        if (tpdu_len == pdu.length) {
+            byte[] npdu = new byte[pdu.length + 1];
+            npdu[0] = 0;
+            System.arraycopy(pdu, 0, npdu, 1, pdu.length);
+            return npdu;
+        } else {
+            return pdu;
+        }
     }
 
     public void handle(org.ofono.Message.PropertyChanged s) {

@@ -1,2 +1,2 @@
 #!/bin/bash
-adb push {$ANDROID_PRODUCT_OUT,}/system/app/RilOfono
+adb push {$ANDROID_PRODUCT_OUT,}/system/app/RilOfono/RilOfono.apk

@@ -211,8 +211,13 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 		 * this value to off detaches the modem from the
 		 * Packet Domain network.
          */
-        mConnMan.SetProperty("Powered", new Variant<>(allowed));
-        respondOk("setDataAllowed", result, null);
+        try {
+            mConnMan.SetProperty("Powered", new Variant<>(allowed));
+            respondOk("setDataAllowed", result, null);
+        } catch (Throwable t) {
+            Rlog.e(TAG, "Exception setting ConnMan.Powered to "+allowed, t);
+            respondExc("setDataAllowed", result, GENERIC_FAILURE, null);
+        }
     }
 
     @RilMethod

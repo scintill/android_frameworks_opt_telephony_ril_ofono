@@ -978,7 +978,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
     // iccTransmitApduBasicChannel(), getAtr(), setLocalCallHold()
 
     private static final String OFONO_BUS_NAME = "org.ofono";
-    private static final String MODEM_PATH = "/ril_0";
+    private static final String MODEM_PATH = "/gobi_0"; // TODO make this dynamically use the "first" modem we see (because we only expect one)
 
     /*package*/ <T extends DBusInterface> T getOfonoInterface(Class<T> tClass) {
         return getOfonoInterface(tClass, MODEM_PATH);
