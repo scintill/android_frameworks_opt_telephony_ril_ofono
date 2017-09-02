@@ -19,10 +19,11 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.Message;
 import android.os.RegistrantList;
 import android.telephony.Rlog;
 import android.telephony.SignalStrength;
+
+import com.android.internal.telephony.CommandException;
 
 import org.freedesktop.DBus;
 import org.freedesktop.dbus.Variant;
@@ -46,9 +47,6 @@ import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UMTS;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandsInterface.RadioState;
-import static net.scintill.ril_ofono.RilOfono.respondExc;
-import static net.scintill.ril_ofono.RilOfono.respondOk;
-import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
@@ -78,42 +76,41 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     @RilMethod
-    public void getIMEI(Message result) {
+    public Object getIMEI() {
         // TODO GSM-specific?
-        respondOk("getIMEI", result, new PrivResponseOb(getProp(mModemProps, "Serial", "")), true);
+        return new PrivResponseOb(getProp(mModemProps, "Serial", ""));
     }
 
     @RilMethod
-    public void getIMEISV(Message result) {
+    public Object getIMEISV() {
         // TODO GSM-specific?
-        respondOk("getIMEISV", result, new PrivResponseOb(getProp(mModemProps, "SoftwareVersionNumber", "")), true);
+        return new PrivResponseOb(getProp(mModemProps, "SoftwareVersionNumber", ""));
     }
 
     @RilMethod
-    public void getSignalStrength(Message response) {
+    public Object getSignalStrength() {
         // TODO I can't seem to find this on the ofono bus, but supposedly it's supported
         // make up a low strength
-        SignalStrength s = new SignalStrength(20, 1, -1, -1, -1, -1, -1, true);
-        respondOk("getSignalStrength", response, s, true);
+        return new SignalStrength(20, 1, -1, -1, -1, -1, -1, true);
     }
 
     @RilMethod
-    public void getVoiceRegistrationState(Message response) {
+    public Object getVoiceRegistrationState() {
         OfonoRegistrationState state = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown);
         if (!state.isRegistered()) {
-            respondOk("getVoiceRegistrationState", response, new String[]{ ""+state.ts27007Creg, "-1", "-1" });
+            return new String[]{ ""+state.ts27007Creg, "-1", "-1" };
         } else {
-            respondOk("getVoiceRegistrationState", response, new PrivResponseOb(new String[]{
+            return new PrivResponseOb(new String[]{
                     ""+state.ts27007Creg,
                     getProp(mNetRegProps, "LocationAreaCode", "-1"),
                     getProp(mNetRegProps, "CellId", "-1"),
                     ""+getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown).serviceStateInt,
-            }));
+            });
         }
     }
 
     @RilMethod
-    public void getOperator(Message response) {
+    public Object getOperator() {
         String STAR_EMOJI = "🌠";
 
         boolean registered = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown).isRegistered();
@@ -122,46 +119,41 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         String mnc = getProp(mNetRegProps, "MobileNetworkCode", "");
         name = STAR_EMOJI + name + STAR_EMOJI; // make it obvious we're running this RIL
         if (registered && mcc.length() > 0 && mnc.length() > 0 && name.length() > 0) {
-            respondOk("getOperator", response, new String[] {
+            return new String[] {
                     name, name, /* TODO does Ofono offer distinct short and long names? */
                     mcc+mnc
-            });
+            };
         } else {
-            respondOk("getOperator", response, new String[] { null, null, null });
+            return new String[] { null, null, null };
         }
     }
 
     @RilMethod
-    public void setRadioPower(final boolean on, final Message response) {
+    public Object setRadioPower(final boolean on) {
         Rlog.v(TAG, "setRadioPower("+on+")");
 
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                mModem.SetProperty("Online", new Variant<>(on));
-                respondOk("setRadioPower", response, null);
-            }
-        });
+        mModem.SetProperty("Online", new Variant<>(on));
+        return null;
     }
 
     @RilMethod
-    public void getNetworkSelectionMode(Message response) {
+    public Object getNetworkSelectionMode() {
         String mode = getProp(mNetRegProps, "Mode", (String)null);
         if (mode == null) {
-            respondExc("getNetworkSelectionMode", response, GENERIC_FAILURE, null);
+            throw new CommandException(GENERIC_FAILURE);
         } else {
-            respondOk("getNetworkSelectionMode", response, new int[]{ mode.equals("manual") ? 1 : 0 });
+            return new int[]{ mode.equals("manual") ? 1 : 0 };
         }
     }
 
     @RilMethod
-    public void getBasebandVersion(Message response) {
-        respondOk("getBaseBandVersion", response, getProp(mModemProps, "Revision", ""), true);
+    public Object getBasebandVersion() {
+        return getProp(mModemProps, "Revision", "");
     }
 
     @RilMethod
-    public void getVoiceRadioTechnology(Message result) {
-        respondOk("getVoiceRadioTechnology", result, getVoiceRadioTechnologyAsyncResult());
+    public Object getVoiceRadioTechnology() {
+        return getVoiceRadioTechnologyAsyncResult();
     }
 
     protected void onPropChange(Modem modem, String name, Variant value) {

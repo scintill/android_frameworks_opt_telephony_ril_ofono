@@ -19,20 +19,12 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.Message;
-import android.telephony.Rlog;
-
 import org.freedesktop.dbus.Variant;
 import org.ofono.Pair;
 import org.ofono.SupplementaryServices;
 
-import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOTIFY;
 import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOT_SUPPORTED;
-import static net.scintill.ril_ofono.RilOfono.privExc;
-import static net.scintill.ril_ofono.RilOfono.respondExc;
-import static net.scintill.ril_ofono.RilOfono.respondOk;
-import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
 
 /*package*/ class SupplementaryServicesModule {
 
@@ -48,26 +40,16 @@ import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
     }
 
     @RilMethod
-    public void sendUSSD(final String ussdString, final Message response) {
+    public Object sendUSSD(final String ussdString) {
         // TODO network-initiated USSD. apparently they're rare, and it doesn't look like the rild backend of oFono supports them
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    // TODO do on a separate thread? oFono docs seem to imply this will block everything anyway
-                    Pair<String, Variant> ussdResponse = mSupplSvcs.Initiate(ussdString);
-                    respondOk("sendUSSD", response, null);
-                    if (!ussdResponse.a.equals("USSD")) {
-                        mUSSDRegistrants.notifyResult(new String[]{""+USSD_MODE_NOT_SUPPORTED, null});
-                    } else {
-                        mUSSDRegistrants.notifyResult(new String[]{""+USSD_MODE_NOTIFY, (String) ussdResponse.b.getValue()});
-                    }
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error initiating USSD", privExc(t));
-                    respondExc("sendUSSD", response, GENERIC_FAILURE, null);
-                }
-            }
-        });
+        // TODO do on a separate thread? oFono docs seem to imply this will block everything anyway
+        Pair<String, Variant> ussdResponse = mSupplSvcs.Initiate(ussdString);
+        if (!ussdResponse.a.equals("USSD")) {
+            mUSSDRegistrants.notifyResult(new String[]{""+USSD_MODE_NOT_SUPPORTED, null});
+        } else {
+            mUSSDRegistrants.notifyResult(new String[]{""+USSD_MODE_NOTIFY, (String) ussdResponse.b.getValue()});
+        }
+        return null;
     }
 
 }

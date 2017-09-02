@@ -3,4 +3,4 @@ adb shell su root stop ofonod
 adb shell su root stop qmiserial2qmuxd
 adb shell su root stop dbus
 adb shell su root start ril-daemon
-adb shell setprop debug.scintill.ril_class '""' \; killall com.android.phone
+adb shell setprop ril.ril_class '""' \; killall com.android.phone

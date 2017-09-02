@@ -17,23 +17,17 @@
  * along with ril_ofono.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 package net.scintill.ril_ofono;
 
-import android.content.Context;
 import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
-import android.os.Registrant;
 import android.os.StrictMode;
 import android.telephony.Rlog;
 import android.text.TextUtils;
 
-import com.android.internal.telephony.BaseCommands;
 import com.android.internal.telephony.CommandException;
-import com.android.internal.telephony.CommandsInterface;
-import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.UUSInfo;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
 import com.android.internal.telephony.dataconnection.DataProfile;
@@ -51,17 +45,19 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
-import static net.scintill.ril_ofono.Utils.getCallerMethodName;
+import static com.android.internal.telephony.CommandsInterface.RadioState;
 
-public class RilOfono extends BaseCommands implements CommandsInterface {
+public class RilOfono implements RilInterface {
 
     /*package*/ static final String TAG = "RilOfono";
-    private static final int BUILD_NUMBER = 11;
+    private static final int BUILD_NUMBER = 12;
     /*package*/ static final boolean LOG_POTENTIALLY_SENSITIVE_INFO = true;
 
     /*
@@ -72,6 +68,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     private static final String DBUS_ADDRESS = "unix:path=/dev/socket/dbus";
 
+    private RilWrapper mRilWrapper;
     private Handler mDbusHandler;
     private Handler mMainHandler;
 
@@ -86,12 +83,11 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
     /*package*/ static RilOfono sInstance;
 
-    public RilOfono(Context context, int preferredNetworkType, int cdmaSubscription, Integer instanceId) {
-        super(context);
+    /*package*/ RilOfono(final RilWrapper rilWrapper) {
         sInstance = this;
         Rlog.d(TAG, "RilOfono "+BUILD_NUMBER+" starting");
 
-        mPhoneType = RILConstants.NO_PHONE;
+        mRilWrapper = rilWrapper;
 
         HandlerThread dbusThread = new HandlerThread("RilOfonoDbusThread");
         dbusThread.start();
@@ -107,12 +103,12 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                 try {
                     mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
 
-                    mModemModule = new ModemModule(mVoiceNetworkStateRegistrants, mVoiceRadioTechChangedRegistrants);
-                    mSmsModule = new SmsModule(new DynamicRegistrantListFromField("mGsmSmsRegistrant")); // TODO gsm-specific
-                    mSimModule = new SimModule(mIccStatusChangedRegistrants);
-                    mCallModule = new CallModule(mCallStateRegistrants);
-                    mDataConnModule = new DataConnModule(mDataNetworkStateRegistrants);
-                    mSupplSvcsModule = new SupplementaryServicesModule(new DynamicRegistrantListFromField("mUSSDRegistrant"));
+                    mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants);
+                    mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
+                    mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants);
+                    mCallModule = new CallModule(mRilWrapper.mCallStateRegistrants);
+                    mDataConnModule = new DataConnModule(mRilWrapper.mDataNetworkStateRegistrants);
+                    mSupplSvcsModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
                     mModemModule.onModemChange(false); // initialize starting state
                 } catch (DBusException e) {
                     logException("RilOfono", e);
@@ -130,7 +126,7 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
             @Override
             public void run() {
                 // see RIL.java for RIL_UNSOL_RIL_CONNECTED
-                setRadioPower(false, cbToMsg(new Handler.Callback() {
+                mRilWrapper.setRadioPower(false, cbToMsg(new Handler.Callback() {
                     @Override
                     public boolean handleMessage(Message msg) {
                         AsyncResult ar = (AsyncResult) msg.obj;
@@ -144,830 +140,679 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
                     }
                 }));
                 Rlog.d(TAG, "notifyRegistrantsRilConnectionChanged");
-                updateRilConnection(RIL_VERSION);
+                mRilWrapper.updateRilConnection(RIL_VERSION);
             }
         });
         // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
     }
 
     @Override
-    @RilMethod
-    public void getImsRegistrationState(Message result) {
-        respondExc("getImsRegistrationState", result, REQUEST_NOT_SUPPORTED, null);
+    public Object getImsRegistrationState() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setSuppServiceNotifications(boolean enable, Message result) {
-        respondExc("setSuppServiceNotifications", result, REQUEST_NOT_SUPPORTED, null);
+    public Object setSuppServiceNotifications(boolean enable) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPin(String pin, Message result) {
-        supplyIccPinForApp(pin, null, result);
+    public Object supplyIccPin(String pin) {
+        return supplyIccPinForApp(pin, null);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPinForApp(String pin, String aid, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object supplyIccPinForApp(String pin, String aid) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPuk(String puk, String newPin, Message result) {
-        supplyIccPukForApp(puk, newPin, null, result);
+    public Object supplyIccPuk(String puk, String newPin) {
+        return supplyIccPukForApp(puk, newPin, null);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPukForApp(String puk, String newPin, String aid, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object supplyIccPukForApp(String puk, String newPin, String aid) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPin2(String pin2, Message result) {
-        supplyIccPin2ForApp(pin2, null, result);
+    public Object supplyIccPin2(String pin2) {
+        return supplyIccPin2ForApp(pin2, null);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPin2ForApp(String pin2, String aid, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object supplyIccPin2ForApp(String pin2, String aid) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPuk2(String puk2, String newPin2, Message result) {
-        supplyIccPuk2ForApp(puk2, newPin2, null, result);
+    public Object supplyIccPuk2(String puk2, String newPin2) {
+        return supplyIccPuk2ForApp(puk2, newPin2, null);
     }
 
     @Override
-    @RilMethod
-    public void supplyIccPuk2ForApp(String puk2, String newPin2, String aid, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object supplyIccPuk2ForApp(String puk2, String newPin2, String aid) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void changeIccPin(String oldPin, String newPin, Message result) {
-        changeIccPin2ForApp(oldPin, newPin, null, result);
+    public Object changeIccPin(String oldPin, String newPin) {
+        return changeIccPin2ForApp(oldPin, newPin, null);
     }
 
     @Override
-    @RilMethod
-    public void changeIccPinForApp(String oldPin, String newPin, String aidPtr, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object changeIccPinForApp(String oldPin, String newPin, String aidPtr) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void changeIccPin2(String oldPin2, String newPin2, Message result) {
-        changeIccPin2ForApp(oldPin2, newPin2, null, result);
+    public Object changeIccPin2(String oldPin2, String newPin2) {
+        return changeIccPin2ForApp(oldPin2, newPin2, null);
     }
 
     @Override
-    @RilMethod
-    public void changeIccPin2ForApp(String oldPin2, String newPin2, String aidPtr, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object changeIccPin2ForApp(String oldPin2, String newPin2, String aidPtr) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void changeBarringPassword(String facility, String oldPwd, String newPwd, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object changeBarringPassword(String facility, String oldPwd, String newPwd) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void supplyDepersonalization(String netpin, String type, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object supplyDepersonalization(String netpin, String type) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getCurrentCalls(Message result) {
-        mCallModule.getCurrentCalls(result);
+    public Object getCurrentCalls() {
+        return mCallModule.getCurrentCalls();
     }
 
     @Override
-    @RilMethod
-    public void getPDPContextList(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getPDPContextList() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getDataCallList(Message result) {
-        mDataConnModule.getDataCallList(result);
+    public Object getDataCallList() {
+        return mDataConnModule.getDataCallList();
     }
 
     @Override
-    @RilMethod
-    public void getDataCallProfile(int appType, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getDataCallProfile(int appType) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setDataProfile(DataProfile[] dps, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object setDataProfile(DataProfile[] dps) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setDataAllowed(boolean allowed, Message result) {
-        mDataConnModule.setDataAllowed(allowed, result);
+    public Object setDataAllowed(boolean allowed) {
+        return mDataConnModule.setDataAllowed(allowed);
     }
 
     @Override
-    @RilMethod
-    public void dial(String address, int clirMode, Message result) {
-        mCallModule.dial(address, clirMode, result);
+    public Object dial(String address, int clirMode) {
+        return mCallModule.dial(address, clirMode);
     }
 
     @Override
-    @RilMethod
-    public void dial(String address, int clirMode, UUSInfo uusInfo, Message result) {
-        mCallModule.dial(address, clirMode, uusInfo, result);
+    public Object dial(String address, int clirMode, UUSInfo uusInfo) {
+        return mCallModule.dial(address, clirMode, uusInfo);
     }
 
     @Override
-    @RilMethod
-    public void hangupForegroundResumeBackground(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object hangupForegroundResumeBackground() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void switchWaitingOrHoldingAndActive(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object switchWaitingOrHoldingAndActive() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void conference(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object conference() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setPreferredVoicePrivacy(boolean enable, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object setPreferredVoicePrivacy(boolean enable) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getPreferredVoicePrivacy(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getPreferredVoicePrivacy() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void separateConnection(int gsmIndex, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object separateConnection(int gsmIndex) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void acceptCall(Message result) {
-        mCallModule.acceptCall(result);
+    public Object acceptCall() {
+        return mCallModule.acceptCall();
     }
 
     @Override
-    @RilMethod
-    public void rejectCall(Message result) {
-        mCallModule.rejectCall(result);
+    public Object rejectCall() {
+        return mCallModule.rejectCall();
     }
 
     @Override
-    @RilMethod
-    public void explicitCallTransfer(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object explicitCallTransfer() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getLastCallFailCause(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getLastCallFailCause() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getLastPdpFailCause(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getLastPdpFailCause() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getLastDataCallFailCause(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getLastDataCallFailCause() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setMute(boolean enableMute, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setMute(boolean enableMute) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getMute(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getMute() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getSignalStrength(Message response) {
-        mModemModule.getSignalStrength(response);
+    public Object getSignalStrength() {
+        return mModemModule.getSignalStrength();
     }
 
     @Override
-    @RilMethod
-    public void getVoiceRegistrationState(Message response) {
-        mModemModule.getVoiceRegistrationState(response);
+    public Object getVoiceRegistrationState() {
+        return mModemModule.getVoiceRegistrationState();
     }
 
     @Override
-    @RilMethod
-    public void getIMSI(Message result) {
-        getIMSIForApp(null, result);
+    public Object getIMSI() {
+        return getIMSIForApp(null);
     }
 
     @Override
-    @RilMethod
-    public void getIMSIForApp(String aid, Message result) {
-        mSimModule.getIMSIForApp(aid, result);
+    public Object getIMSIForApp(String aid) {
+        return mSimModule.getIMSIForApp(aid);
     }
 
     @Override
-    @RilMethod
-    public void getIMEI(Message result) {
-        mModemModule.getIMEI(result);
+    public Object getIMEI() {
+        return mModemModule.getIMEI();
     }
 
     @Override
-    @RilMethod
-    public void getIMEISV(Message result) {
-        mModemModule.getIMEISV(result);
+    public Object getIMEISV() {
+        return mModemModule.getIMEISV();
     }
 
     @Override
-    @RilMethod
-    public void hangupConnection(int gsmIndex, Message result) {
-        mCallModule.hangupConnection(gsmIndex, result);
+    public Object hangupConnection(int gsmIndex) {
+        return mCallModule.hangupConnection(gsmIndex);
     }
 
     @Override
-    @RilMethod
-    public void hangupWaitingOrBackground(Message result) {
-        mCallModule.hangupWaitingOrBackground(result);
+    public Object hangupWaitingOrBackground() {
+        return mCallModule.hangupWaitingOrBackground();
     }
 
     @Override
-    @RilMethod
-    public void getDataRegistrationState(Message response) {
-        mDataConnModule.getDataRegistrationState(response);
+    public Object getDataRegistrationState() {
+        return mDataConnModule.getDataRegistrationState();
     }
 
     @Override
-    @RilMethod
-    public void getOperator(Message response) {
-        mModemModule.getOperator(response);
+    public Object getOperator() {
+        return mModemModule.getOperator();
     }
 
     @Override
-    @RilMethod
-    public void sendDtmf(char c, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object sendDtmf(char c) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void startDtmf(char c, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object startDtmf(char c) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void stopDtmf(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object stopDtmf() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendBurstDtmf(String dtmfString, int on, int off, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object sendBurstDtmf(String dtmfString, int on, int off) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendSMS(String smscPDUStr, String pduStr, Message response) {
-        mSmsModule.sendSMS(smscPDUStr, pduStr, response);
+    public Object sendSMS(String smscPDUStr, String pduStr) {
+        return mSmsModule.sendSMS(smscPDUStr, pduStr);
     }
 
     @Override
-    @RilMethod
-    public void sendSMSExpectMore(String smscPDU, String pdu, Message result) {
+    public Object sendSMSExpectMore(String smscPDU, String pdu) {
         // TODO can oFono benefit from knowing to "expect more"?
-        sendSMS(smscPDU, pdu, result);
+        return sendSMS(smscPDU, pdu);
     }
 
     @Override
-    @RilMethod
-    public void sendCdmaSms(byte[] pdu, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object sendCdmaSms(byte[] pdu) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendImsGsmSms(String smscPDU, String pdu, int retry, int messageRef, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object sendImsGsmSms(String smscPDU, String pdu, int retry, int messageRef) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendImsCdmaSms(byte[] pdu, int retry, int messageRef, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object sendImsCdmaSms(byte[] pdu, int retry, int messageRef) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void deleteSmsOnSim(int index, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object deleteSmsOnSim(int index) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void deleteSmsOnRuim(int index, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object deleteSmsOnRuim(int index) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void writeSmsToSim(int status, String smsc, String pdu, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object writeSmsToSim(int status, String smsc, String pdu) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void writeSmsToRuim(int status, String pdu, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object writeSmsToRuim(int status, String pdu) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setRadioPower(boolean on, Message response) {
-        mModemModule.setRadioPower(on, response);
+    public Object setRadioPower(boolean on) {
+        return mModemModule.setRadioPower(on);
     }
 
     @Override
-    @RilMethod
-    public void acknowledgeLastIncomingGsmSms(boolean success, int cause, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object acknowledgeLastIncomingGsmSms(boolean success, int cause) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void acknowledgeLastIncomingCdmaSms(boolean success, int cause, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object acknowledgeLastIncomingCdmaSms(boolean success, int cause) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void acknowledgeIncomingGsmSmsWithPdu(boolean success, String ackPdu, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object acknowledgeIncomingGsmSmsWithPdu(boolean success, String ackPdu) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, Message response) {
-        iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, null, response);
+    public Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2) {
+        return iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, null);
     }
 
     @Override
-    @RilMethod
-    public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message response) {
-        mSimModule.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, response);
+    public Object iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid) {
+        return mSimModule.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid);
     }
 
     @Override
-    @RilMethod
-    public void queryCLIP(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object queryCLIP() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getCLIR(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getCLIR() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setCLIR(int clirMode, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setCLIR(int clirMode) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void queryCallWaiting(int serviceClass, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object queryCallWaiting(int serviceClass) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setCallWaiting(boolean enable, int serviceClass, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setCallWaiting(boolean enable, int serviceClass) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setCallForward(int action, int cfReason, int serviceClass, String number, int timeSeconds, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setCallForward(int action, int cfReason, int serviceClass, String number, int timeSeconds) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void queryCallForwardStatus(int cfReason, int serviceClass, String number, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object queryCallForwardStatus(int cfReason, int serviceClass, String number) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setNetworkSelectionModeAutomatic(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setNetworkSelectionModeAutomatic() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setNetworkSelectionModeManual(String operatorNumeric, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setNetworkSelectionModeManual(String operatorNumeric) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getNetworkSelectionMode(Message response) {
-        mModemModule.getNetworkSelectionMode(response);
+    public Object getNetworkSelectionMode() {
+        return mModemModule.getNetworkSelectionMode();
     }
 
     @Override
-    @RilMethod
-    public void getAvailableNetworks(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getAvailableNetworks() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getBasebandVersion(Message response) {
-        mModemModule.getBasebandVersion(response);
+    public Object getBasebandVersion() {
+        return mModemModule.getBasebandVersion();
     }
 
     @Override
-    @RilMethod
-    public void queryFacilityLock(String facility, String password, int serviceClass, Message response) {
-        queryFacilityLockForApp(facility, password, serviceClass, null, response);
+    public Object queryFacilityLock(String facility, String password, int serviceClass) {
+        return queryFacilityLockForApp(facility, password, serviceClass, null);
     }
 
     @Override
-    @RilMethod
-    public void queryFacilityLockForApp(String facility, String password, int serviceClass, String appId, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object queryFacilityLockForApp(String facility, String password, int serviceClass, String appId) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setFacilityLock(String facility, boolean lockState, String password, int serviceClass, Message response) {
-        setFacilityLockForApp(facility, lockState, password, serviceClass, null, response);
+    public Object setFacilityLock(String facility, boolean lockState, String password, int serviceClass) {
+        return setFacilityLockForApp(facility, lockState, password, serviceClass, null);
     }
 
     @Override
-    @RilMethod
-    public void setFacilityLockForApp(String facility, boolean lockState, String password, int serviceClass, String appId, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setFacilityLockForApp(String facility, boolean lockState, String password, int serviceClass, String appId) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendUSSD(String ussdString, Message response) {
-        mSupplSvcsModule.sendUSSD(ussdString, response);
+    public Object sendUSSD(String ussdString) {
+        return mSupplSvcsModule.sendUSSD(ussdString);
     }
 
     @Override
-    @RilMethod
-    public void cancelPendingUssd(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object cancelPendingUssd() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void resetRadio(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object resetRadio() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setBandMode(int bandMode, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setBandMode(int bandMode) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void queryAvailableBandMode(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object queryAvailableBandMode() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setPreferredNetworkType(int networkType, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setPreferredNetworkType(int networkType) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getPreferredNetworkType(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getPreferredNetworkType() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getNeighboringCids(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getNeighboringCids() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setLocationUpdates(boolean enable, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setLocationUpdates(boolean enable) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getSmscAddress(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getSmscAddress() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setSmscAddress(String address, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object setSmscAddress(String address) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void reportSmsMemoryStatus(boolean available, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object reportSmsMemoryStatus(boolean available) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void reportStkServiceIsRunning(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object reportStkServiceIsRunning() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void invokeOemRilRequestRaw(byte[] data, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);    }
-
-    @Override
-    @RilMethod
-    public void invokeOemRilRequestStrings(String[] strings, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);    }
-
-    @Override
-    @RilMethod
-    public void sendTerminalResponse(String contents, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object invokeOemRilRequestRaw(byte[] data) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendEnvelope(String contents, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object invokeOemRilRequestStrings(String[] strings) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendEnvelopeWithStatus(String contents, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object sendTerminalResponse(String contents) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void handleCallSetupRequestFromSim(boolean accept, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object sendEnvelope(String contents) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setGsmBroadcastActivation(boolean activate, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object sendEnvelopeWithStatus(String contents) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setGsmBroadcastConfig(SmsBroadcastConfigInfo[] config, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object handleCallSetupRequestFromSim(boolean accept) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getGsmBroadcastConfig(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setGsmBroadcastActivation(boolean activate) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getDeviceIdentity(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setGsmBroadcastConfig(SmsBroadcastConfigInfo[] config) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getCDMASubscription(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getGsmBroadcastConfig() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void sendCDMAFeatureCode(String FeatureCode, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getDeviceIdentity() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setPhoneType(int phoneType) {
-        mPhoneType = phoneType;
+    public Object getCDMASubscription() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void queryCdmaRoamingPreference(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object sendCDMAFeatureCode(String FeatureCode) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setCdmaRoamingPreference(int cdmaRoamingType, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object queryCdmaRoamingPreference() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setCdmaSubscriptionSource(int cdmaSubscriptionType, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setCdmaRoamingPreference(int cdmaRoamingType) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getCdmaSubscriptionSource(Message response) {
-        respondExc("getCdmaSubscriptionSource", response, REQUEST_NOT_SUPPORTED, null);
+    public Object setCdmaSubscriptionSource(int cdmaSubscriptionType) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setTTYMode(int ttyMode, Message response) {
-        respondExc("setTTYMode", response, REQUEST_NOT_SUPPORTED, null);
+    public Object getCdmaSubscriptionSource() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void queryTTYMode(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setTTYMode(int ttyMode) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setupDataCall(String radioTechnology, String profile, String apn, String user, String password, String authType, String protocol, Message result) {
-        mDataConnModule.setupDataCall(radioTechnology, profile, apn, user, password, authType, protocol, result);
+    public Object queryTTYMode() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void deactivateDataCall(int cid, int reason, Message result) {
-        mDataConnModule.deactivateDataCall(cid, reason, result);
+    public Object setupDataCall(String radioTechnology, String profile, String apn, String user, String password, String authType, String protocol) {
+        return mDataConnModule.setupDataCall(radioTechnology, profile, apn, user, password, authType, protocol);
     }
 
     @Override
-    @RilMethod
-    public void setCdmaBroadcastActivation(boolean activate, Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null, true);
+    public Object deactivateDataCall(int cid, int reason) {
+        return mDataConnModule.deactivateDataCall(cid, reason);
     }
 
     @Override
-    @RilMethod
-    public void setCdmaBroadcastConfig(CdmaSmsBroadcastConfigInfo[] configs, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null, true);
+    public Object setCdmaBroadcastActivation(boolean activate) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getCdmaBroadcastConfig(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null, true);
+    public Object setCdmaBroadcastConfig(CdmaSmsBroadcastConfigInfo[] configs) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void exitEmergencyCallbackMode(Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getCdmaBroadcastConfig() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getIccCardStatus(Message result) {
-        mSimModule.getIccCardStatus(result);
+    public Object exitEmergencyCallbackMode() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void requestIsimAuthentication(String nonce, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getIccCardStatus() {
+        return mSimModule.getIccCardStatus();
     }
 
     @Override
-    @RilMethod
-    public void requestIccSimAuthentication(int authContext, String data, String aid, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object requestIsimAuthentication(String nonce) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getVoiceRadioTechnology(Message result) {
-        mModemModule.getVoiceRadioTechnology(result);
+    public Object requestIccSimAuthentication(int authContext, String data, String aid) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getCellInfoList(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object getVoiceRadioTechnology() {
+        return mModemModule.getVoiceRadioTechnology();
     }
 
     @Override
-    @RilMethod
-    public void setCellInfoListRate(int rateInMillis, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object getCellInfoList() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void setInitialAttachApn(String apn, String protocol, int authType, String username, String password, Message result) {
-        mDataConnModule.setInitialAttachApn(apn, protocol, authType, username, password, result);
+    public Object setCellInfoListRate(int rateInMillis) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void nvReadItem(int itemID, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object setInitialAttachApn(String apn, String protocol, int authType, String username, String password) {
+        return mDataConnModule.setInitialAttachApn(apn, protocol, authType, username, password);
     }
 
     @Override
-    @RilMethod
-    public void nvWriteItem(int itemID, String itemValue, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object nvReadItem(int itemID) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void nvWriteCdmaPrl(byte[] preferredRoamingList, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object nvWriteItem(int itemID, String itemValue) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void nvResetConfig(int resetType, Message response) {
-        respondExc(getCallerMethodName(), response, REQUEST_NOT_SUPPORTED, null);
+    public Object nvWriteCdmaPrl(byte[] preferredRoamingList) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public void getHardwareConfig(Message result) {
-        respondExc(getCallerMethodName(), result, REQUEST_NOT_SUPPORTED, null);
+    public Object nvResetConfig(int resetType) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    @RilMethod
-    public boolean needsOldRilFeature(String feature) {
-        return false;
+    public Object getHardwareConfig() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
-    @Override
-    @RilMethod // just to make it accessible in this package
-    protected void setRadioState(RadioState newState) {
-        super.setRadioState(newState);
+    /*package*/ void setRadioState(RadioState newState) {
+        mRilWrapper.setRadioStateHelper(newState);
     }
 
     /*package*/ static void logException(String m, Throwable t) {
         Rlog.e(TAG, "Uncaught exception in "+m, t);
-    }
-
-    private void updateRilConnection(int version) {
-        this.mRilVersion = version;
-        if (mRilConnectedRegistrants != null) {
-            mRilConnectedRegistrants.notifyResult(version);
-        }
     }
 
     // TODO
@@ -1031,11 +876,16 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         }
     }
 
-    /*package*/ static void respondOk(String caller, Message response, Object o) {
-        respondOk(caller, response, o, false);
-    }
+    private static final Set<String> quietRespondOk = new HashSet<>(Arrays.asList(new String[]{
+        "getSignalStrength", "getBasebandVersion", "getIMSIForApp", "getIccCardStatus", "iccIO", "iccIOForApp"
+    }));
+    private static final Set<String> quietRespondExc = new HashSet<>(Arrays.asList(new String[]{
+        "setCdmaBroadcastActivation", "setCdmaBroadcastConfig",
+    }));
 
-    /*package*/ static void respondOk(String caller, Message response, Object o, boolean quiet) {
+    /*package*/ static void respondOk(String caller, Message response, Object o) {
+        boolean quiet = quietRespondOk.contains(caller);
+
         PrivResponseOb privResponseOb = null;
         if (o instanceof PrivResponseOb) {
             privResponseOb = (PrivResponseOb) o;
@@ -1052,11 +902,9 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         }
     }
 
-    /*package*/ static void respondExc(String caller, Message response, CommandException.Error err, Object o) {
-        respondExc(caller, response, err, o, false);
-    }
+    /*package*/ static void respondExc(String caller, Message response, CommandException exc, Object o) {
+        boolean quiet = quietRespondExc.contains(caller);
 
-    /*package*/ static void respondExc(String caller, Message response, CommandException.Error err, Object o, boolean quiet) {
         PrivResponseOb privResponseOb = null;
         if (o instanceof PrivResponseOb) {
             privResponseOb = (PrivResponseOb) o;
@@ -1065,11 +913,10 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
 
         if (!quiet) {
             CharSequence debugString = toDebugString(o, privResponseOb != null);
-            Rlog.d(TAG, "respondExc from "+caller+": "+err+" "+debugString);
+            Rlog.d(TAG, "respondExc from "+caller+": "+exc.getCommandError()+" "+debugString);
         }
         if (response != null) {
-            // fill in generic exception if needed - at least GsmCallTracker
-            AsyncResult.forMessage(response, o, new CommandException(err));
+            AsyncResult.forMessage(response, o, exc);
             response.sendToTarget();
         }
     }
@@ -1139,39 +986,6 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         return LOG_POTENTIALLY_SENSITIVE_INFO ? t : null;
     }
 
-    /*
-     * Works similar to Android's RegistrantList.
-     */
-    /*package*/ interface RegistrantList {
-        void notifyResult(Object result);
-    }
-
-    /*
-     * Helps paper over the difference between a single registrant stored in a mutable field, and a list
-     * of registrants.
-     */
-    class DynamicRegistrantListFromField implements RegistrantList {
-        Field mField;
-        DynamicRegistrantListFromField(String fieldname) {
-            try {
-                mField = Utils.getField(RilOfono.this, fieldname);
-                mField.setAccessible(true);
-            } catch (NoSuchFieldException e) {
-                throw new RuntimeException("unable to create dynamic registrant list from field "+fieldname, e);
-            }
-        }
-
-        @Override
-        public void notifyResult(Object result) {
-            try {
-                Registrant registrant = (Registrant) mField.get(RilOfono.this);
-                registrant.notifyResult(result);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException("unable to get registrant", e);
-            }
-        }
-    }
-
     private static void runWithNetworkPermittedOnMainThread(Runnable r) {
         StrictMode.ThreadPolicy standardPolicy = StrictMode.getThreadPolicy();
         StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder(standardPolicy)
@@ -1183,6 +997,13 @@ public class RilOfono extends BaseCommands implements CommandsInterface {
         } finally {
             StrictMode.setThreadPolicy(standardPolicy);
         }
+    }
+
+    /*
+     * Works similar to Android's RegistrantList.
+     */
+    /*package*/ interface RegistrantList {
+        void notifyResult(Object result);
     }
 
 }

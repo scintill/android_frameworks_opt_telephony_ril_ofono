@@ -19,10 +19,10 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.Message;
 import android.os.RegistrantList;
 import android.telephony.Rlog;
 
+import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
 import com.android.internal.telephony.uicc.IccCardStatus.CardState;
@@ -35,8 +35,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
-import static net.scintill.ril_ofono.RilOfono.respondExc;
-import static net.scintill.ril_ofono.RilOfono.respondOk;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
 /*package*/ class SimModule extends PropManager {
@@ -65,23 +63,23 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     @RilMethod
-    public void iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid, Message response) {
-        mSimFiles.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid, response);
+    public Object iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid) {
+        return mSimFiles.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid);
     }
 
     @RilMethod
-    public void getIMSIForApp(String aid, Message result) {
+    public Object getIMSIForApp(String aid) {
         // TODO GSM-specific?
         String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
         if (imsi != null) {
-            respondOk("getIMSIForApp", result, new PrivResponseOb(imsi), true);
+            return new PrivResponseOb(imsi);
         } else {
-            respondExc("getIMSIForApp", result, GENERIC_FAILURE, null);
+            throw new CommandException(GENERIC_FAILURE);
         }
     }
 
     @RilMethod
-    public void getIccCardStatus(Message result) {
+    public Object getIccCardStatus() {
         // TODO GSM-specific? can we/should we do more?
         IccCardStatus cardStatus = new IccCardStatus();
         cardStatus.mCdmaSubscriptionAppIndex = -1;
@@ -112,7 +110,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
         cardStatus.mUniversalPinState = IccCardStatus.PinState.PINSTATE_DISABLED; // TODO
 
-        respondOk("getIccCardStatus", result, new PrivResponseOb(cardStatus), true);
+        return new PrivResponseOb(cardStatus);
     }
 
     protected void onPropChange(SimManager simManager, String name, Variant value) {

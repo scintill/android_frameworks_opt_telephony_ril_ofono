@@ -19,11 +19,11 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.Message;
 import android.os.RegistrantList;
 import android.telephony.Rlog;
 import android.text.TextUtils;
 
+import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.dataconnection.DataCallResponse;
@@ -43,15 +43,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
-import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
-import static net.scintill.ril_ofono.RilOfono.respondExc;
-import static net.scintill.ril_ofono.RilOfono.respondOk;
-import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
 /*package*/ class DataConnModule extends PropManager {
@@ -76,27 +71,22 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     @RilMethod
-    public void getDataRegistrationState(Message response) {
-        respondOk("getDataRegistrationState", response, new String[] {
+    public Object getDataRegistrationState() {
+        return new String[] {
             // see e.g. GsmServiceStateTracker for the values and offsets, though some appear unused
             ""+(getProp(mConnManProps, "Attached", Boolean.FALSE) ? OfonoRegistrationState.registered : OfonoRegistrationState.unregistered).ts27007Creg,
             "", "", // unused?
             ""+getProp(mConnManProps, "Bearer", OfonoNetworkTechnology._unknown).serviceStateInt,
-        });
+        };
     }
 
     @RilMethod
-    public void getDataCallList(Message result) {
-        try {
-            respondOk("getDataCallList", result, new PrivResponseOb(getDataCallList()));
-        } catch (Throwable t) {
-            Rlog.e(TAG, "Error getting data call list", t);
-            respondExc("getDataCallList", result, GENERIC_FAILURE, null);
-        }
+    public Object getDataCallList() {
+        return new PrivResponseOb(getDataCallListImpl());
     }
 
     @RilMethod
-    public void setupDataCall(String radioTechnologyStr, String profile, String apnStr, String user, String password, String authType, String protocol, final Message result) {
+    public Object setupDataCall(String radioTechnologyStr, String profile, String apnStr, String user, String password, String authType, String protocol) {
         OfonoNetworkTechnology radioTechnology = OfonoNetworkTechnology.fromSetupDataCallValue(Integer.valueOf(radioTechnologyStr));
         OfonoNetworkTechnology currentRadioTechnology = getProp(mConnManProps, "Bearer", OfonoNetworkTechnology._unknown);
 
@@ -105,13 +95,11 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         // let's be stringent for now...
         if (radioTechnology != currentRadioTechnology) {
             Rlog.e(TAG, "Unable to provide requested radio technology "+radioTechnology+"("+radioTechnologyStr+"); current is "+currentRadioTechnology);
-            respondExc("setupDataCall", result, MODE_NOT_SUPPORTED, null);
-            return; // <---
+            throw new CommandException(MODE_NOT_SUPPORTED);
         }
         if (!profile.equals(String.valueOf(RILConstants.DATA_PROFILE_DEFAULT))) {
             Rlog.e(TAG, "Unable to provide non-default data call profile "+profile);
-            respondExc("setupDataCall", result, MODE_NOT_SUPPORTED, null);
-            return; // <---
+            throw new CommandException(MODE_NOT_SUPPORTED);
         }
 
         final Apn apn = new Apn();
@@ -121,39 +109,23 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         apn.authType = Integer.parseInt(authType);
         apn.protocol = protocol;
 
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Path ctxPath = mConnMan.AddContext("internet");
-                    ConnectionContext ctx = RilOfono.sInstance.getOfonoInterface(ConnectionContext.class, ctxPath.getPath());
-                    apn.setOnContext(ctx);
-                    setContextActive(ctx, true);
-                    respondOk("setupDataCall", result, new PrivResponseOb(getDataCallResponse(ctxPath.getPath(), ctx.GetProperties())));
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "data call creation failed", privExc(t));
-                    respondExc("setupDataCall", result, GENERIC_FAILURE, null);
-                }
-            }
-        });
+        Path ctxPath = mConnMan.AddContext("internet");
+        ConnectionContext ctx = RilOfono.sInstance.getOfonoInterface(ConnectionContext.class, ctxPath.getPath());
+        apn.setOnContext(ctx);
+        setContextActive(ctx, true);
+        return new PrivResponseOb(getDataCallResponse(ctxPath.getPath(), ctx.GetProperties()));
     }
 
     @RilMethod
-    public void deactivateDataCall(int cid, int reason, Message result) {
+    public Object deactivateDataCall(int cid, int reason) {
         Rlog.d(TAG, "deactivateDataCall "+cid+" "+reason);
-        try {
-            String path = getPathFromUniqueIntId(cid);
-            if (path == null) {
-                respondExc("deactivateDatal", result, NO_SUCH_ELEMENT, null);
-                return;
-            }
-            mConnMan.RemoveContext(new Path(path));
-            forgetAboutUniqueId(path);
-            respondOk("deactivateDataCall", result, null);
-        } catch (Throwable t) {
-            Rlog.e(TAG, "error stopping data call", t);
-            respondExc("deactivateDataCall", result, GENERIC_FAILURE, null);
+        String path = getPathFromUniqueIntId(cid);
+        if (path == null) {
+            throw new CommandException(NO_SUCH_ELEMENT);
         }
+        mConnMan.RemoveContext(new Path(path));
+        forgetAboutUniqueId(path);
+        return null;
     }
 
     private DataCallResponse getDataCallResponse(String dbusPath, Map<String, Variant> props) {
@@ -186,7 +158,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return dcr;
     }
 
-    private List<DataCallResponse> getDataCallList() {
+    private List<DataCallResponse> getDataCallListImpl() {
         List<DataCallResponse> list = new ArrayList<>();
         //Rlog.d(TAG, "mConnectionsProps="+privStr(mConnectionsProps));
         for (Map.Entry<String, Map<String, Variant>> connectionPropsEntry : mConnectionsProps.entrySet()) {
@@ -202,8 +174,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     @RilMethod
-    public void setDataAllowed(boolean allowed, Message result) {
-        Rlog.d(TAG, "setDataAllowed "+allowed);
+    public Object setDataAllowed(boolean allowed) {
+        Rlog.d(TAG, "setDataAllowed " + allowed);
         /*
          * from oFono docs:
          * 		boolean Powered [readwrite]
@@ -211,19 +183,14 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 		 * this value to off detaches the modem from the
 		 * Packet Domain network.
          */
-        try {
-            mConnMan.SetProperty("Powered", new Variant<>(allowed));
-            respondOk("setDataAllowed", result, null);
-        } catch (Throwable t) {
-            Rlog.e(TAG, "Exception setting ConnMan.Powered to "+allowed, t);
-            respondExc("setDataAllowed", result, GENERIC_FAILURE, null);
-        }
+        mConnMan.SetProperty("Powered", new Variant<>(allowed));
+        return null;
     }
 
     @RilMethod
-    public void setInitialAttachApn(String apn, String protocol, int authType, String username, String password, Message result) {
+    public Object setInitialAttachApn(String apn, String protocol, int authType, String username, String password) {
         // not sure what this means, or whether it's applicable to oFono
-        respondExc("setInitialAttachApn", result, REQUEST_NOT_SUPPORTED, null);
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     private void setContextActive(ConnectionContext ctx, boolean active) {
@@ -264,8 +231,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final DebouncedRunnable mFnNotifyDataNetworkState = new DebouncedRunnable() {
         @Override
         public void run() {
-            Rlog.d(TAG, "notify dataNetworkState "+privStr(getDataCallList()));
-            mDataNetworkStateRegistrants.notifyResult(getDataCallList());
+            Object calls = getDataCallListImpl();
+            Rlog.d(TAG, "notify dataNetworkState "+privStr(calls));
+            mDataNetworkStateRegistrants.notifyResult(calls);
         }
     };
 

@@ -19,11 +19,11 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.Message;
 import android.os.RegistrantList;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
 
+import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.DriverCall;
 import com.android.internal.telephony.PhoneConstants;
@@ -46,9 +46,6 @@ import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUP
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
 import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
-import static net.scintill.ril_ofono.RilOfono.respondExc;
-import static net.scintill.ril_ofono.RilOfono.respondOk;
-import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
@@ -70,40 +67,35 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     @RilMethod
-    public void getCurrentCalls(Message result) {
-        try {
-            List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
-            //Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
-            for (Map<String, Variant> callProps : mCallsProps.values()) {
-                DriverCall call = new DriverCall();
-                call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
-                call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
-                if (call.state == null || call.index == -1) {
-                    Rlog.e(TAG, "Skipping unknown call: "+privStr(callProps));
-                    continue; // <--- skip unknown call
-                }
-
-                String lineId = getProp(callProps, "LineIdentification", "");
-                if (lineId.length() == 0 || lineId.equals("withheld")) lineId = null;
-                call.TOA = PhoneNumberUtils.toaFromString(lineId);
-                call.isMpty = false;
-                call.isMT = !getProp(callProps, PROPNAME_CALL_MOBORIG, false);
-                call.als = 0; // SimulatedGsmCallState
-                call.isVoice = true;
-                call.isVoicePrivacy = false; // oFono doesn't tell us
-                call.number = lineId;
-                call.numberPresentation = PhoneConstants.PRESENTATION_UNKNOWN;
-                call.name = getProp(callProps, "Name", "");
-                call.namePresentation = PhoneConstants.PRESENTATION_UNKNOWN;
-                // TODO check if + is shown in number
-                calls.add(call);
+    public Object getCurrentCalls() {
+        List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
+        //Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
+        for (Map<String, Variant> callProps : mCallsProps.values()) {
+            DriverCall call = new DriverCall();
+            call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
+            call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
+            if (call.state == null || call.index == -1) {
+                Rlog.e(TAG, "Skipping unknown call: "+privStr(callProps));
+                continue; // <--- skip unknown call
             }
-            Collections.sort(calls); // not sure why, but original RIL does
-            respondOk("getCurrentCalls", result, new PrivResponseOb(calls));
-        } catch (Throwable t) {
-            Rlog.e(TAG, "Error getting calls", privExc(t));
-            respondExc("getCurrentCalls", result, GENERIC_FAILURE, null);
+
+            String lineId = getProp(callProps, "LineIdentification", "");
+            if (lineId.length() == 0 || lineId.equals("withheld")) lineId = null;
+            call.TOA = PhoneNumberUtils.toaFromString(lineId);
+            call.isMpty = false;
+            call.isMT = !getProp(callProps, PROPNAME_CALL_MOBORIG, false);
+            call.als = 0; // SimulatedGsmCallState
+            call.isVoice = true;
+            call.isVoicePrivacy = false; // oFono doesn't tell us
+            call.number = lineId;
+            call.numberPresentation = PhoneConstants.PRESENTATION_UNKNOWN;
+            call.name = getProp(callProps, "Name", "");
+            call.namePresentation = PhoneConstants.PRESENTATION_UNKNOWN;
+            // TODO check if + is shown in number
+            calls.add(call);
         }
+        Collections.sort(calls); // not sure why, but original RIL does
+        return new PrivResponseOb(calls);
     }
 
     private final Map<String, Map<String, Variant>> mCallsProps = new HashMap<>();
@@ -152,7 +144,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     @RilMethod
-    public void dial(final String address, int clirMode, final Message result) {
+    public Object dial(final String address, int clirMode) {
         final String clirModeStr;
         switch (clirMode) {
             case CommandsInterface.CLIR_DEFAULT: clirModeStr = "default"; break;
@@ -162,124 +154,90 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
                 throw new IllegalArgumentException("unknown CLIR constant "+clirMode);
         }
 
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Path dialedCallPath = mCallManager.Dial(address, clirModeStr);
-                    Map<String, Variant> dialedCallProps = new HashMap<>();
-                    dialedCallProps.put(PROPNAME_CALL_MOBORIG, new Variant<>(true));
-                    putOrMerge2dProps(mCallsProps, dialedCallPath.getPath(), dialedCallProps);
-                    Rlog.d(TAG, "dialed "+dialedCallPath.getPath());
-                    respondOk("dial", result, null);
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error dialing", privExc(t));
-                    respondExc("dial", result, GENERIC_FAILURE, null);
-                }
-            }
-        });
+        Path dialedCallPath = mCallManager.Dial(address, clirModeStr);
+        Map<String, Variant> dialedCallProps = new HashMap<>();
+        dialedCallProps.put(PROPNAME_CALL_MOBORIG, new Variant<>(true));
+        putOrMerge2dProps(mCallsProps, dialedCallPath.getPath(), dialedCallProps);
+        Rlog.d(TAG, "dialed "+dialedCallPath.getPath());
+        return null;
     }
 
     @RilMethod
-    public void dial(String address, int clirMode, UUSInfo uusInfo, Message result) {
+    public Object dial(String address, int clirMode, UUSInfo uusInfo) {
         if (uusInfo != null) {
-            respondExc("dial", result, MODE_NOT_SUPPORTED, null);
+            throw new CommandException(MODE_NOT_SUPPORTED);
         } else {
-            dial(address, clirMode, result);
+            return dial(address, clirMode);
         }
     }
 
     @RilMethod
-    public void hangupConnection(final int gsmIndex, final Message result) {
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    String callPath = getDbusPathForCallIndex(gsmIndex);
-                    if (callPath == null) {
-                        respondExc("hangupConnection", result, NO_SUCH_ELEMENT, null);
-                        return;
-                    }
-                    VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
-                    call.Hangup();
-                    respondOk("hangupConnection", result, null);
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error hanging up", privExc(t));
-                    respondExc("hangupConnection", result, GENERIC_FAILURE, null);
-                }
-            }
-        });
+    public Object hangupConnection(final int gsmIndex) {
+        String callPath = getDbusPathForCallIndex(gsmIndex);
+        if (callPath == null) {
+            throw new CommandException(NO_SUCH_ELEMENT);
+        }
+        VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
+        call.Hangup();
+        return null;
     }
 
     @RilMethod
-    public void hangupWaitingOrBackground(final Message result) {
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                boolean oneSucceeded = false, oneExcepted = false;
-                for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
-                    String callPath = callPropsEntry.getKey();
-                    Map<String, Variant> callProps = callPropsEntry.getValue();
-                    try {
-                        DriverCall.State callState = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
-                        // TODO which states should be hungup? should we only hang up one?
-                        if (callState != null) {
-                            switch (callState) {
-                                case INCOMING:
-                                case HOLDING:
-                                case WAITING:
-                                    VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
-                                    call.Hangup();
-                                    oneSucceeded = true;
-                                    break;
-                                default:
-                                    // skip
-                            }
-                        }
-                    } catch (Throwable t) {
-                        oneExcepted = true;
-                        Rlog.e(TAG, "Error checking/hangingup call", privExc(t));
-                    }
-                }
-
-                if (oneSucceeded) {
-                    respondOk("hangupWaitingOrBackground", result, null);
-                } else if (oneExcepted) {
-                    respondExc("hangupWaitingOrBackground", result, GENERIC_FAILURE, null);
-                } else {
-                    respondExc("hangupWaitingOrBackground", result, NO_SUCH_ELEMENT, null);
-                }
-            }
-        });
-    }
-
-    @RilMethod
-    public void acceptCall(final Message result) {
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
-                        String callPath = callPropsEntry.getKey();
-                        Map<String, Variant> callProps = callPropsEntry.getValue();
-                        if (Utils.parseOfonoCallState(getProp(callProps, "State", "")) == DriverCall.State.INCOMING) {
+    public Object hangupWaitingOrBackground() {
+        boolean oneSucceeded = false, oneExcepted = false;
+        for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
+            String callPath = callPropsEntry.getKey();
+            Map<String, Variant> callProps = callPropsEntry.getValue();
+            try {
+                DriverCall.State callState = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
+                // TODO which states should be hungup? should we only hang up one?
+                if (callState != null) {
+                    switch (callState) {
+                        case INCOMING:
+                        case HOLDING:
+                        case WAITING:
                             VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
-                            call.Answer();
-                            respondOk("acceptCall", result, null);
-                        }
+                            call.Hangup();
+                            oneSucceeded = true;
+                            break;
+                        default:
+                            // skip
                     }
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error accepting call", privExc(t));
-                    respondExc("acceptCall", result, GENERIC_FAILURE, null);
                 }
+            } catch (Throwable t) {
+                oneExcepted = true;
+                Rlog.e(TAG, "Error checking/hangingup call", privExc(t));
             }
-        });
+        }
+
+        if (oneSucceeded) {
+            return null;
+        } else if (oneExcepted) {
+            throw new CommandException(GENERIC_FAILURE);
+        } else {
+            throw new CommandException(NO_SUCH_ELEMENT);
+        }
     }
 
     @RilMethod
-    public void rejectCall(Message result) {
+    public Object acceptCall() {
+        for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
+            String callPath = callPropsEntry.getKey();
+            Map<String, Variant> callProps = callPropsEntry.getValue();
+            if (Utils.parseOfonoCallState(getProp(callProps, "State", "")) == DriverCall.State.INCOMING) {
+                VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
+                call.Answer();
+                return null;
+            }
+        }
+
+        throw new CommandException(CommandException.Error.NO_SUCH_ELEMENT);
+    }
+
+    @RilMethod
+    public Object rejectCall() {
         // TODO RIL.java sends UDUB, which may not be the same as what we're indirectly asking oFono to do here
-        hangupWaitingOrBackground(result);
+        return hangupWaitingOrBackground();
     }
 
     final DebouncedRunnable mFnNotifyCallStateChanged = new DebouncedRunnable() {

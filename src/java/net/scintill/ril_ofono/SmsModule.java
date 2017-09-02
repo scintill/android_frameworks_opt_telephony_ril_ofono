@@ -23,6 +23,7 @@ import android.os.Message;
 import android.telephony.Rlog;
 import android.telephony.SmsMessage;
 
+import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.IccUtils;
 import com.android.internal.telephony.SmsConstants;
 import com.android.internal.telephony.SmsResponse;
@@ -38,7 +39,6 @@ import static com.android.internal.telephony.CommandException.Error.GENERIC_FAIL
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.respondExc;
 import static net.scintill.ril_ofono.RilOfono.respondOk;
-import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
 
 /*package*/ class SmsModule {
@@ -62,7 +62,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
     }
 
     @RilMethod
-    public void sendSMS(String smscPDUStr, String pduStr, final Message response) {
+    public Object sendSMS(String smscPDUStr, String pduStr) {
         Rlog.d(TAG, "sendSMS");
         // TODO gsm-specific?
         if (smscPDUStr == null) smscPDUStr = "00";
@@ -70,23 +70,13 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
         final byte[] smscPDU = IccUtils.hexStringToBytes(smscPDUStr);
         final byte[] pdu = IccUtils.hexStringToBytes(pduStr);
 
-        runOnDbusThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    synchronized (mMapSmsDbusPathToSenderCallback) {
-                        // TODO timeout on this method? at least we're not on the main thread,
-                        // but we could block anything else trying to get on the dbus thread
-                        Path sentMessage = mMessenger.SendPdu(smscPDU, pdu);
-                        mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), response);
-                    }
-                } catch (Throwable t) {
-                    // TODO catch format errors that oFono found and return a better error code?
-                    Rlog.e(TAG, "Error sending msg", t);
-                    respondExc("sendSMS", response, GENERIC_FAILURE, null);
-                }
-            }
-        });
+        synchronized (mMapSmsDbusPathToSenderCallback) {
+            // TODO timeout on this method? at least we're not on the main thread,
+            // but we could block anything else trying to get on the dbus thread
+            Path sentMessage = mMessenger.SendPdu(smscPDU, pdu);
+            mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), RilWrapper.getCurrentMessage());
+        }
+        return RilWrapper.RETURN_LATER;
     }
 
     public void handleSendSmsComplete(String msgDbusPath, String status) {
@@ -104,7 +94,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
             if (success) {
                 respondOk("sendSMS", senderCb, new SmsResponse(mSmsRef.incrementAndGet(), ackPdu, -1));
             } else {
-                respondExc("sendSMS", senderCb, GENERIC_FAILURE, new SmsResponse(mSmsRef.incrementAndGet(), ackPdu, -1));
+                respondExc("sendSMS", senderCb, new CommandException(GENERIC_FAILURE), new SmsResponse(mSmsRef.incrementAndGet(), ackPdu, -1));
             }
         }
     }

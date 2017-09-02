@@ -4,4 +4,4 @@ adb shell su root stop ril-daemon
 adb shell su root start dbus
 adb shell su root start qmiserial2qmuxd
 adb shell su root start ofonod
-adb shell setprop debug.scintill.ril_class net.scintill.ril_ofono/.RilOfono \; killall com.android.phone
+adb shell setprop ril.ril_class net.scintill.ril_ofono/.RilWrapper \; killall com.android.phone
