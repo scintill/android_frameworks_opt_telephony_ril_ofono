@@ -199,8 +199,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     public void handle(ConnectionContext.PropertyChanged s) {
-        handle2dPropChange(mConnectionsProps, s.getPath(), ConnectionContext.class, s.name, s.value);
-        runOnMainThreadDebounced(mFnNotifyDataNetworkState, 200);
+        if (handle2dPropChange(mConnectionsProps, s.getPath(), ConnectionContext.class, s.name, s.value)) {
+            runOnMainThreadDebounced(mFnNotifyDataNetworkState, 200);
+        }
     }
 
     public void onPropChange(ConnectionManager connMan, String name, Variant value) {

@@ -119,8 +119,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     public void handle(VoiceCall.PropertyChanged s) {
-        handle2dPropChange(mCallsProps, s.getPath(), VoiceCall.class, s.name, s.value);
-        runOnMainThreadDebounced(mFnNotifyCallStateChanged, 200);
+        if (handle2dPropChange(mCallsProps, s.getPath(), VoiceCall.class, s.name, s.value)) {
+            runOnMainThreadDebounced(mFnNotifyCallStateChanged, 200);
+        }
     }
 
     public void handle(VoiceCallManager.CallRemoved s) {

@@ -27,7 +27,6 @@ import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSigHandler;
 import org.freedesktop.dbus.DBusSignal;
 import org.freedesktop.dbus.Variant;
-import org.freedesktop.dbus.exceptions.DBusExecutionException;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -36,6 +35,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import libcore.util.Objects;
+
 import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 
@@ -43,20 +44,24 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
 
     private static final String TAG = RilOfono.TAG;
 
-    private static void logAndUpdateProp(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
-        Rlog.v(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
+    private static boolean logAndUpdateProp(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
+        boolean changed;
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToUpdate) {
-            propsToUpdate.put(name, value);
+            changed = !Objects.equal(value, propsToUpdate.put(name, value));
         }
+        if (changed) {
+            Rlog.v(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
+        }
+        return changed;
     }
 
-    protected static void handle2dPropChange(Map<String, Map<String, Variant>> propsToUpdateRoot, String keyToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant value) {
+    protected static boolean handle2dPropChange(Map<String, Map<String, Variant>> propsToUpdateRoot, String keyToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant value) {
         Map<String, Variant> propsToUpdate = propsToUpdateRoot.get(keyToUpdate);
         if (propsToUpdate == null) {
             propsToUpdateRoot.put(keyToUpdate, propsToUpdate = new HashMap<>());
         }
-        logAndUpdateProp(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
+        return logAndUpdateProp(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
     }
 
     protected static void putOrMerge2dProps(Map<String, Map<String, Variant>> rootProps, String key, Map<String, Variant> props) {
@@ -125,8 +130,9 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
                     try {
                         String name = (String)fName.get(s);
                         Variant value = (Variant)fValue.get(s);
-                        logAndUpdateProp(props, sourceObIface.getSimpleName(), name, value);
-                        mtOnPropChange.invoke(PropManager.this, sourceOb, name, value);
+                        if (logAndUpdateProp(props, sourceObIface.getSimpleName(), name, value)) {
+                            mtOnPropChange.invoke(PropManager.this, sourceOb, name, value);
+                        }
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException("unable to handle propchange signal", e);
                     } catch (InvocationTargetException e) {
