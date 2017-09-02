@@ -21,6 +21,7 @@ package net.scintill.ril_ofono;
 
 import android.content.Context;
 import android.os.Registrant;
+import android.os.RegistrantList;
 import android.telephony.Rlog;
 
 import com.android.internal.telephony.BaseCommands;
@@ -77,6 +78,7 @@ public final class RilWrapper extends BaseCommands {
 
     /*package*/ RilOfono.RegistrantList mGsmSmsRegistrants = new DynamicRegistrantListFromField("mGsmSmsRegistrant");
     /*package*/ RilOfono.RegistrantList mUSSDRegistrants = new DynamicRegistrantListFromField("mUSSDRegistrant");
+    /*package*/ RilOfono.RegistrantList mSignalStrengthRegistrants = new DynamicRegistrantListFromField("mSignalStrengthRegistrant");
 
     ///////////////////////////
     // Promote some members to package visibility

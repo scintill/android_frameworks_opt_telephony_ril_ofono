@@ -103,7 +103,7 @@ public class RilOfono implements RilInterface {
                 try {
                     mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
 
-                    mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants);
+                    mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
                     mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
                     mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants);
                     mCallModule = new CallModule(mRilWrapper.mCallStateRegistrants);

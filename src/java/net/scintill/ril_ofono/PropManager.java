@@ -159,21 +159,6 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         }
     }
 
-    /*package*/ static Integer getProp(Map<String, Variant> props, String key, Integer defaultValue) {
-        if (props.get(key) == null) return defaultValue;
-        Object value = props.get(key).getValue();
-        if (value instanceof UInt16) return ((UInt16) value).intValue();
-        return (Integer) value;
-    }
-
-    /*package*/ static Long getProp(Map<String, Variant> props, String key, Long defaultValue) {
-        if (props.get(key) == null) return defaultValue;
-        Object value = props.get(key).getValue();
-        if (value instanceof UInt16) return ((UInt16) value).longValue();
-        if (value instanceof UInt32) return ((UInt32) value).longValue();
-        return (Long) value;
-    }
-
     /*package*/ static String getProp(Map<String, Variant> props, String key, String defaultValue) {
         return props.get(key) != null ? props.get(key).getValue().toString() : defaultValue;
     }

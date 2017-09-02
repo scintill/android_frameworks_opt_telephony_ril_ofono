@@ -55,15 +55,17 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private static final String TAG = RilOfono.TAG;
     private final RegistrantList mVoiceNetworkStateRegistrants;
     private final RegistrantList mVoiceRadioTechChangedRegistrants;
+    private final RilOfono.RegistrantList mSignalStrengthRegistrants;
 
     private Modem mModem;
     private final Map<String, Variant> mModemProps = new HashMap<>();
     private NetworkRegistration mNetReg;
     private final Map<String, Variant> mNetRegProps = new HashMap<>();
 
-    /*package*/ ModemModule(RegistrantList voiceNetworkStateRegistrants, RegistrantList voiceRadioTechChangedRegistrants) {
+    /*package*/ ModemModule(RegistrantList voiceNetworkStateRegistrants, RegistrantList voiceRadioTechChangedRegistrants, RilOfono.RegistrantList signalStrengthRegistrants) {
         mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
         mVoiceRadioTechChangedRegistrants = voiceRadioTechChangedRegistrants;
+        mSignalStrengthRegistrants = signalStrengthRegistrants;
 
         mModem = RilOfono.sInstance.getOfonoInterface(Modem.class);
         mNetReg = RilOfono.sInstance.getOfonoInterface(NetworkRegistration.class);
@@ -89,9 +91,11 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     @RilMethod
     public Object getSignalStrength() {
-        // TODO I can't seem to find this on the ofono bus, but supposedly it's supported
-        // make up a low strength
-        return new SignalStrength(20, 1, -1, -1, -1, -1, -1, true);
+        // TODO gsm-specific
+        Byte signalPercent = getProp(mNetRegProps, "Strength", (Byte)null);
+        return new SignalStrength(
+                signalPercent == null ? 99 : (int)Math.round(signalPercent / 100.0 * 31),
+                99, -1, -1, -1, -1, -1, true);
     }
 
     @RilMethod
@@ -169,7 +173,16 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     protected void onPropChange(NetworkRegistration netReg, String name, Variant value) {
-        runOnMainThreadDebounced(mFnNotifyNetworkChanged, 350);
+        if (name.equals("Strength")) {
+            runOnMainThread(new Runnable() {
+                @Override
+                public void run() {
+                    mSignalStrengthRegistrants.notifyResult(getSignalStrength());
+                }
+            });
+        } else {
+            runOnMainThreadDebounced(mFnNotifyNetworkChanged, 350);
+        }
         // TODO data network registration?
     }
 
