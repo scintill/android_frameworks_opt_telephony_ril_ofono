@@ -110,9 +110,8 @@ public class RilOfono implements RilInterface {
                     mDataConnModule = new DataConnModule(mRilWrapper.mDataNetworkStateRegistrants);
                     mSupplSvcsModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
                     mModemModule.onModemChange(false); // initialize starting state
-                } catch (DBusException e) {
-                    logException("RilOfono", e);
-                    System.exit(-1); // XXX how to better react to this?
+                } catch (Throwable t) {
+                    throw new RuntimeException("exception while loading", t);
                 }
             }
         });
@@ -134,7 +133,7 @@ public class RilOfono implements RilInterface {
                             setRadioState(RadioState.RADIO_OFF);
                         } else {
                             setRadioState(RadioState.RADIO_UNAVAILABLE);
-                            logException("onModemAvail setRadioPower", ar.exception);
+                            Rlog.e(TAG, "onModemAvail: setRadioPower(false) returned an exception", ar.exception);
                         }
                         return true;
                     }
@@ -811,10 +810,6 @@ public class RilOfono implements RilInterface {
         mRilWrapper.setRadioStateHelper(newState);
     }
 
-    /*package*/ static void logException(String m, Throwable t) {
-        Rlog.e(TAG, "Uncaught exception in "+m, t);
-    }
-
     // TODO
     // things I noticed BaseCommands overrides but has an empty implementation we might need to override:
     // getModemCapability(),
@@ -832,20 +827,21 @@ public class RilOfono implements RilInterface {
     /*package*/ <T extends DBusInterface> T getOfonoInterface(Class<T> tClass, String path) {
         try {
             return mDbus.getRemoteObject(OFONO_BUS_NAME, path, tClass);
-        } catch (Throwable t) {
-            Rlog.e(TAG, "Exception getting "+tClass.getSimpleName(), t);
-            return null;
+        } catch (DBusException e) {
+            throw new RuntimeException("Exception getting "+ tClass.getSimpleName(), e);
         }
     }
 
+    // no exception catch-all will be provided
     /*package*/ <T extends DBusSignal> void registerDbusSignal(Class<T> signalClass, DBusSigHandler<T> handler) {
         try {
             mDbus.addSigHandler(signalClass, handler);
         } catch (DBusException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Unable to register dbus signal handler", e);
         }
     }
 
+    // an exception catch-all (that logs exceptions with privExc()) will be provided
     /*package*/ <T extends DBusSignal> void registerDbusSignal(Class<T> signalClass, final Object handler) {
         try {
             final Method m = handler.getClass().getMethod("handle", signalClass);
@@ -857,14 +853,14 @@ public class RilOfono implements RilInterface {
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException("Unexpected exception while delegating dbus signal", e);
                     } catch (InvocationTargetException e) {
-                        Rlog.e(TAG, "Unexpected exception while delegating dbus signal", e.getCause());
+                        Rlog.e(TAG, "Unexpected exception while dispatching dbus signal", privExc(e.getCause()));
                         // do not re-throw
                     }
                 }
             });
-        } catch (DBusException e) {
-            throw new RuntimeException(e);
         } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Unable to find dbus signal handler", e);
+        } catch (DBusException e) {
             throw new RuntimeException("Unable to register dbus signal handler", e);
         }
     }

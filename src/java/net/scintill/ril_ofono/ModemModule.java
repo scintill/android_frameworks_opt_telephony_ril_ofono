@@ -217,8 +217,6 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             } else {
                 // ignore
             }
-        } catch (Throwable t) {
-            RilOfono.logException("onModemChange", t);
         }
     }
 
@@ -264,13 +262,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     private Object getVoiceRadioTechnologyAsyncResult() {
         // TODO is this really the right value?
-        try {
-            OfonoNetworkTechnology tech = getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown);
-            return new int[]{ tech.serviceStateInt };
-        } catch (Throwable t) {
-            Rlog.e(TAG, "Error getting voice radio tech", t);
-            return new int[] { OfonoNetworkTechnology._unknown.serviceStateInt };
-        }
+        OfonoNetworkTechnology tech = getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown);
+        return new int[]{ tech.serviceStateInt };
     }
 
 }

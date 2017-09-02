@@ -26,8 +26,6 @@ import org.freedesktop.DBus;
 import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSigHandler;
 import org.freedesktop.dbus.DBusSignal;
-import org.freedesktop.dbus.UInt16;
-import org.freedesktop.dbus.UInt32;
 import org.freedesktop.dbus.Variant;
 import org.freedesktop.dbus.exceptions.DBusExecutionException;
 
@@ -38,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 
 /*package*/ class PropManager {
@@ -83,15 +82,13 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
             throw new RuntimeException("unable to find GetProperties method", e);
         } catch (InvocationTargetException e) {
             try {
-                if (e.getCause() instanceof DBusExecutionException) {
-                    throw (DBusExecutionException) e.getCause();
-                } else {
-                    throw new RuntimeException("error calling GetProperties() on " + sourceObIface.getSimpleName(), e.getCause());
-                }
+                throw e.getCause();
             } catch (DBus.Error.UnknownMethod unknownMethod) {
                 Rlog.w(TAG, "unable to GetProperties() on " + sourceObIface.getSimpleName());
                 // probably just isn't loaded yet, so give empty props
                 props = new HashMap<>();
+            } catch (Throwable t) {
+                throw new RuntimeException("error calling GetProperties() on " + sourceObIface.getSimpleName(), t);
             }
         }
 
@@ -107,7 +104,8 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new RuntimeException("unable to find onPropChange method", e);
             } catch (InvocationTargetException e) {
-                throw new RuntimeException(e.getCause());
+                Rlog.e(TAG, "exception in onPropChange()", e.getCause());
+                // do not re-throw
             }
         }
     }
@@ -132,7 +130,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException("unable to handle propchange signal", e);
                     } catch (InvocationTargetException e) {
-                        Rlog.e(TAG, "error handling propchange signal", e.getCause());
+                        Rlog.e(TAG, "exception in onPropChange()", privExc(e.getCause()));
                         // do not re-throw
                     }
                 }

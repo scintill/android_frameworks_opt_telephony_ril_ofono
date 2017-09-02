@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
+import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.respondExc;
 import static net.scintill.ril_ofono.RilOfono.respondOk;
@@ -100,24 +101,30 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
     }
 
     public void handle(final MessageManager.IncomingPdu s) {
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    SmsMessage msg = SmsMessage.createFromPdu(normalizePdu(s.pdu, s.tpdu_len), SmsConstants.FORMAT_3GPP);
-                    try {
-                        // someone decided to swallow exceptions and return null as the wrapped object, so check it
-                        if (msg != null) msg.getTimestampMillis();
-                    } catch (NullPointerException e) {
-                        // SmsMessage probably logged more information about the cause, but I want to know what the PDU was
-                        Rlog.e(TAG, "Null returned from parsing incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)+" tpdu_len="+s.tpdu_len));
-                    }
-                    mSmsRegistrants.notifyResult(msg);
-                } catch (Throwable t) {
-                    Rlog.e(TAG, "Error handling incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)+" tpdu_len="+s.tpdu_len));
-                }
+        try {
+            SmsMessage msg = SmsMessage.createFromPdu(normalizePdu(s.pdu, s.tpdu_len), SmsConstants.FORMAT_3GPP);
+            try {
+                // someone decided to swallow exceptions and return null as the wrapped object, so check it
+                if (msg != null) msg.getTimestampMillis();
+            } catch (NullPointerException e) {
+                // SmsMessage probably logged more information about the cause
+                msg = null;
             }
-        });
+            if (msg == null) {
+                throw new IllegalArgumentException("Null returned from parser");
+            }
+
+            final SmsMessage fmsg = msg;
+            runOnMainThread(new Runnable() {
+                @Override
+                public void run() {
+                    mSmsRegistrants.notifyResult(fmsg);
+                }
+            });
+        } catch (Throwable t) {
+            Rlog.e(TAG, "Error handling incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)+" tpdu_len="+s.tpdu_len), privExc(t));
+        }
+
     }
 
     private static byte[] normalizePdu(byte[] pdu, int tpdu_len) {
