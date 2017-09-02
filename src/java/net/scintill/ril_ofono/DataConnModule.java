@@ -57,8 +57,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private ConnectionManager mConnMan;
     private RegistrantList mDataNetworkStateRegistrants;
 
-    private final Map<String, Variant> mConnManProps = new HashMap<>();
-    private final Map<String, Map<String, Variant>> mConnectionsProps = new HashMap<>();
+    private final Map<String, Variant<?>> mConnManProps = new HashMap<>();
+    private final Map<String, Map<String, Variant<?>>> mConnectionsProps = new HashMap<>();
 
     DataConnModule(RegistrantList dataNetworkStateRegistrants) {
         mDataNetworkStateRegistrants = dataNetworkStateRegistrants;
@@ -129,8 +129,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return null;
     }
 
-    private DataCallResponse getDataCallResponse(String dbusPath, Map<String, Variant> props) {
-        Map<String, Variant> ipSettings = getProp(props, "Settings", new HashMap<String, Variant>());
+    private DataCallResponse getDataCallResponse(String dbusPath, Map<String, Variant<?>> props) {
+        Map<String, Variant<?>> ipSettings = getProp(props, "Settings", new HashMap<String, Variant<?>>());
         // TODO ipv6?
 
         if (!getProp(props, "Active", Boolean.FALSE)) {
@@ -162,9 +162,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private List<DataCallResponse> getDataCallListImpl() {
         List<DataCallResponse> list = new ArrayList<>();
         //Rlog.d(TAG, "mConnectionsProps="+privStr(mConnectionsProps));
-        for (Map.Entry<String, Map<String, Variant>> connectionPropsEntry : mConnectionsProps.entrySet()) {
+        for (Map.Entry<String, Map<String, Variant<?>>> connectionPropsEntry : mConnectionsProps.entrySet()) {
             String dbusPath = connectionPropsEntry.getKey();
-            Map<String, Variant> props = connectionPropsEntry.getValue();
+            Map<String, Variant<?>> props = connectionPropsEntry.getValue();
             DataCallResponse dcr = getDataCallResponse(dbusPath, props);
             if (dcr != null) {
                 list.add(dcr);
@@ -204,7 +204,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    public void onPropChange(ConnectionManager connMan, String name, Variant value) {
+    public void onPropChange(ConnectionManager connMan, String name, Variant<?> value) {
         if (name.equals("Attached")) {
             mConnectionsProps.clear();
             if (value.getValue().equals(Boolean.TRUE)) {

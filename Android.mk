@@ -17,17 +17,23 @@
 
 LOCAL_PATH := $(call my-dir)
 
+# Build libraries (separately so we can ignore warnings)
+include $(CLEAR_VARS)
+	LOCAL_MODULE := RilOfono.libs
+	LOCAL_SRC_FILES := $(call all-java-files-under,lib/java/dbus) \
+						$(call all-java-files-under,lib/java/debug) \
+						$(call all-java-files-under,lib/java/ofono)
+include $(BUILD_STATIC_JAVA_LIBRARY)
+
 # Build our Java RIL
 include $(CLEAR_VARS)
 	LOCAL_PACKAGE_NAME := RilOfono
-	LOCAL_SRC_FILES := $(call all-java-files-under,src/java) \
-						$(call all-java-files-under,lib/java/dbus) \
-						$(call all-java-files-under,lib/java/debug) \
-						$(call all-java-files-under,lib/java/ofono)
+	LOCAL_SRC_FILES := $(call all-java-files-under,src/java)
+	LOCAL_STATIC_JAVA_LIBRARIES := RilOfono.libs
 	LOCAL_JAVA_LIBRARIES := telephony-common
 	LOCAL_CERTIFICATE := platform
 
-	LOCAL_JAVACFLAGS += -Xlint:deprecation -Xlint:unchecked
+	LOCAL_JAVACFLAGS := -Xlint
 
 	# TODO not sure what we *should* do with these, but for now it seems easier to get going by turning them off...
 	LOCAL_DEX_PREOPT := false

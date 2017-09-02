@@ -19,8 +19,6 @@
 
 package net.scintill.ril_ofono;
 
-import android.telephony.Rlog;
-
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
@@ -44,11 +42,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     private RegistrantList mIccStatusChangedRegistrants;
 
-    private MessageWaiting mMsgWaiting;
-    private final Map<String, Variant> mMsgWaitingProps = new HashMap<>();
+    private final Map<String, Variant<?>> mMsgWaitingProps = new HashMap<>();
 
-    private SimManager mSim;
-    private final Map<String, Variant> mSimProps = new HashMap<>();
+    private final Map<String, Variant<?>> mSimProps = new HashMap<>();
     private final SimFiles mSimFiles = new SimFiles(mSimProps, mMsgWaitingProps);
 
     private static final String SIM_APP_ID = "00";
@@ -56,11 +52,11 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     /*package*/ SimModule(RegistrantList iccStatusChangedRegistrants) {
         mIccStatusChangedRegistrants = iccStatusChangedRegistrants;
 
-        mSim = RilOfono.sInstance.getOfonoInterface(SimManager.class);
-        mMsgWaiting = RilOfono.sInstance.getOfonoInterface(MessageWaiting.class);
+        SimManager sim = RilOfono.sInstance.getOfonoInterface(SimManager.class);
+        MessageWaiting msgWaiting = RilOfono.sInstance.getOfonoInterface(MessageWaiting.class);
 
-        mirrorProps(SimManager.class, mSim, SimManager.PropertyChanged.class, mSimProps);
-        mirrorProps(MessageWaiting.class, mMsgWaiting, MessageWaiting.PropertyChanged.class, mMsgWaitingProps);
+        mirrorProps(SimManager.class, sim, SimManager.PropertyChanged.class, mSimProps);
+        mirrorProps(MessageWaiting.class, msgWaiting, MessageWaiting.PropertyChanged.class, mMsgWaitingProps);
     }
 
     @RilMethod
@@ -114,12 +110,12 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return new PrivResponseOb(cardStatus);
     }
 
-    protected void onPropChange(SimManager simManager, String name, Variant value) {
+    protected void onPropChange(SimManager simManager, String name, Variant<?> value) {
         // TODO check if something that we report actually changed?
         runOnMainThreadDebounced(mFnNotifySimChanged, 350);
     }
 
-    protected void onPropChange(MessageWaiting messageWaiting, String name, Variant value) {
+    protected void onPropChange(MessageWaiting messageWaiting, String name, Variant<?> value) {
         // no action needed other than mirroring props
     }
 

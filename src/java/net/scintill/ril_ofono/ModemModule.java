@@ -58,9 +58,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final RilOfono.RegistrantList mSignalStrengthRegistrants;
 
     private Modem mModem;
-    private final Map<String, Variant> mModemProps = new HashMap<>();
+    private final Map<String, Variant<?>> mModemProps = new HashMap<>();
     private NetworkRegistration mNetReg;
-    private final Map<String, Variant> mNetRegProps = new HashMap<>();
+    private final Map<String, Variant<?>> mNetRegProps = new HashMap<>();
 
     /*package*/ ModemModule(RegistrantList voiceNetworkStateRegistrants, RegistrantList voiceRadioTechChangedRegistrants, RilOfono.RegistrantList signalStrengthRegistrants) {
         mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
@@ -160,14 +160,14 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return getVoiceRadioTechnologyAsyncResult();
     }
 
-    protected void onPropChange(Modem modem, String name, Variant value) {
+    protected void onPropChange(Modem modem, String name, Variant<?> value) {
         if (name.equals("Online")) {
             final boolean online = (Boolean) value.getValue();
             RilOfono.sInstance.setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
         }
     }
 
-    protected void onPropChange(NetworkRegistration netReg, String name, Variant value) {
+    protected void onPropChange(NetworkRegistration netReg, String name, Variant<?> value) {
         if (name.equals("Strength")) {
             notifyResultAndLog("signal strength", mSignalStrengthRegistrants, getSignalStrength(), false);
         } else {

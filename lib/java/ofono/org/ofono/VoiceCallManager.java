@@ -40,8 +40,8 @@ public interface VoiceCallManager extends DBusInterface
    public static class CallAdded extends DBusSignal
    {
       public final Path path;
-      public final Map<String,Variant> properties;
-      public CallAdded(String vcmPath, Path path, Map<String,Variant> properties) throws DBusException
+      public final Map<String,Variant<?>> properties;
+      public CallAdded(String vcmPath, Path path, Map<String,Variant<?>> properties) throws DBusException
       {
          super(vcmPath, path, properties);
          this.path = path;

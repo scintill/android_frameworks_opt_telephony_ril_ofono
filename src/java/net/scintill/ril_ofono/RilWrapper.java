@@ -108,7 +108,7 @@ public final class RilWrapper extends BaseCommands {
         Field mField;
         DynamicRegistrantListFromField(String fieldname) {
             try {
-                mField = Utils.getField(RilWrapper.this, fieldname);
+                mField = Utils.getField(RilWrapper.class, fieldname);
                 mField.setAccessible(true);
             } catch (NoSuchFieldException e) {
                 throw new RuntimeException("unable to create dynamic registrant list from field "+fieldname, e);
@@ -829,6 +829,7 @@ public final class RilWrapper extends BaseCommands {
         });
     }
 
+    @Deprecated
     public void getLastPdpFailCause(final android.os.Message msg) {
         runOnDbusThread(new Runnable() {
             public void run() {
@@ -914,6 +915,7 @@ public final class RilWrapper extends BaseCommands {
         });
     }
 
+    @Deprecated
     public void getPDPContextList(final android.os.Message msg) {
         runOnDbusThread(new Runnable() {
             public void run() {
@@ -1441,6 +1443,7 @@ public final class RilWrapper extends BaseCommands {
         });
     }
 
+    @Deprecated
     public void requestIsimAuthentication(final String a, final android.os.Message msg) {
         runOnDbusThread(new Runnable() {
             public void run() {

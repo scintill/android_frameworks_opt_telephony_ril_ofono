@@ -39,8 +39,8 @@ import static net.scintill.ril_ofono.PropManager.getProp;
 
     private static final String TAG = "RilOfono";
 
-    private final Map<String, Variant> mMsgWaitingProps;
-    private Map<String, Variant> mSimProps;
+    private final Map<String, Variant<?>> mMsgWaitingProps;
+    private Map<String, Variant<?>> mSimProps;
 
     private static final int COMMAND_GET_RESPONSE = 0xc0;
     private static final int COMMAND_READ_BINARY = 0xb0;
@@ -52,7 +52,7 @@ import static net.scintill.ril_ofono.PropManager.getProp;
 
     private static final int ADN_FOOTER_SIZE = 14;
 
-    /*package*/ SimFiles(Map<String, Variant> simProps, Map<String, Variant> msgWaitingProps) {
+    /*package*/ SimFiles(Map<String, Variant<?>> simProps, Map<String, Variant<?>> msgWaitingProps) {
         mSimProps = simProps;
         mMsgWaitingProps = msgWaitingProps;
     }

@@ -43,7 +43,7 @@ import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOT_SUP
     public Object sendUSSD(final String ussdString) {
         // TODO network-initiated USSD. apparently they're rare, and it doesn't look like the rild backend of oFono supports them
         // TODO do on a separate thread? oFono docs seem to imply this will block everything anyway
-        Pair<String, Variant> ussdResponse = mSupplSvcs.Initiate(ussdString);
+        Pair<String, Variant<?>> ussdResponse = mSupplSvcs.Initiate(ussdString);
         if (!ussdResponse.a.equals("USSD")) {
             RilOfono.notifyResultAndLog("ussd n/a", mUSSDRegistrants, new String[]{""+USSD_MODE_NOT_SUPPORTED, null}, false);
         } else {

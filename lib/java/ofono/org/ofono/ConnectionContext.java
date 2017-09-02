@@ -9,7 +9,7 @@ public interface ConnectionContext extends DBusInterface
    public static class PropertyChanged extends DBusSignal
    {
       public final String name;
-      public final Variant value;
+      public final Variant<?> value;
       public PropertyChanged(String path, String name, Variant value) throws DBusException
       {
          super(path, name, value);
@@ -18,7 +18,7 @@ public interface ConnectionContext extends DBusInterface
       }
    }
 
-  public Map<String,Variant> GetProperties();
+  public Map<String,Variant<?>> GetProperties();
   public void SetProperty(String property, Variant value);
 
 }

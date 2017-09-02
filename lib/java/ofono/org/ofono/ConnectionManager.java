@@ -22,8 +22,8 @@ public interface ConnectionManager extends DBusInterface
    public static class ContextAdded extends DBusSignal
    {
       public final Path path;
-      public final Map<String,Variant> properties;
-      public ContextAdded(String path, Path path2, Map<String,Variant> properties) throws DBusException
+      public final Map<String,Variant<?>> properties;
+      public ContextAdded(String path, Path path2, Map<String,Variant<?>> properties) throws DBusException
       {
          super(path, path2, properties);
          this.path = path2;

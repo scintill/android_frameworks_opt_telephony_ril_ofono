@@ -44,7 +44,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
 
     private static final String TAG = RilOfono.TAG;
 
-    private static boolean logAndUpdateProp(Map<String, Variant> propsToUpdate, String thingChangingDebugRef, String name, Variant value) {
+    private static boolean logAndUpdateProp(Map<String, Variant<?>> propsToUpdate, String thingChangingDebugRef, String name, Variant<?> value) {
         boolean changed;
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToUpdate) {
@@ -56,15 +56,15 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         return changed;
     }
 
-    protected static boolean handle2dPropChange(Map<String, Map<String, Variant>> propsToUpdateRoot, String keyToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant value) {
-        Map<String, Variant> propsToUpdate = propsToUpdateRoot.get(keyToUpdate);
+    protected static boolean handle2dPropChange(Map<String, Map<String, Variant<?>>> propsToUpdateRoot, String keyToUpdate, Class<?extends DBusInterface> dbusObIface, String name, Variant<?> value) {
+        Map<String, Variant<?>> propsToUpdate = propsToUpdateRoot.get(keyToUpdate);
         if (propsToUpdate == null) {
             propsToUpdateRoot.put(keyToUpdate, propsToUpdate = new HashMap<>());
         }
         return logAndUpdateProp(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
     }
 
-    protected static void putOrMerge2dProps(Map<String, Map<String, Variant>> rootProps, String key, Map<String, Variant> props) {
+    protected static void putOrMerge2dProps(Map<String, Map<String, Variant<?>>> rootProps, String key, Map<String, Variant<?>> props) {
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (rootProps) {
             if (!rootProps.containsKey(key)) {
@@ -76,14 +76,15 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         }
     }
 
-    private void initProps(Map<String, Variant> propsToInit, Class<?extends DBusInterface> sourceObIface, DBusInterface sourceOb) {
+    private void initProps(Map<String, Variant<?>> propsToInit, Class<?extends DBusInterface> sourceObIface, DBusInterface sourceOb) {
         // load properties
-        Map<String, Variant> props;
+        Map<String, Variant<?>> props;
         try {
             Method m = sourceObIface.getMethod("GetProperties");
-            //noinspection unchecked
-            props = (Map<String, Variant>) m.invoke(sourceOb);
-        } catch (NoSuchMethodException | IllegalAccessException e) {
+            @SuppressWarnings("unchecked")
+            Map<String, Variant<?>> o = (Map<String, Variant<?>>) m.invoke(sourceOb);
+            props = o;
+        } catch (NoSuchMethodException | IllegalAccessException | ClassCastException e) {
             throw new RuntimeException("unable to find GetProperties method", e);
         } catch (InvocationTargetException e) {
             try {
@@ -99,10 +100,10 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
 
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToInit) {
-            propsToInit.clear(); // TODO notify about removed props?
+            propsToInit.clear();
             try {
                 Method m = this.getClass().getDeclaredMethod("onPropChange", sourceObIface, String.class, Variant.class);
-                for (Map.Entry<String, Variant> entry : props.entrySet()) {
+                for (Map.Entry<String, Variant<?>> entry : props.entrySet()) {
                     logAndUpdateProp(propsToInit, sourceObIface.getSimpleName()+"#init", entry.getKey(), entry.getValue());
                     m.invoke(this, sourceOb, entry.getKey(), entry.getValue());
                 }
@@ -118,7 +119,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
     /*
      * The consuming class must have a method onPropChange(<sourceObIface> sourceOb, String name, Variant value)
      */
-    protected <PropChangeSignalT extends DBusSignal> void mirrorProps(final Class<? extends DBusInterface> sourceObIface, final DBusInterface sourceOb, final Class<PropChangeSignalT> propChangeSignalClass, final Map<String, Variant> props) {
+    protected <PropChangeSignalT extends DBusSignal> void mirrorProps(final Class<? extends DBusInterface> sourceObIface, final DBusInterface sourceOb, final Class<PropChangeSignalT> propChangeSignalClass, final Map<String, Variant<?>> props) {
         try {
             final Field fName = propChangeSignalClass.getField("name");
             final Field fValue = propChangeSignalClass.getField("value");
@@ -148,28 +149,28 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         initProps(props, sourceObIface, sourceOb);
     }
 
-    /*package*/ static <T> T getProp(Map<String, Variant> props, String key, T defaultValue) {
-        //noinspection unchecked
+    @SuppressWarnings("unchecked")
+    /*package*/ static <T> T getProp(Map<String, Variant<?>> props, String key, T defaultValue) {
         return props.get(key) != null ? (T) props.get(key).getValue() : defaultValue;
     }
 
-    /*package*/ static <T> T[] getProp(Map<String, Variant> props, String key, @NonNull T[] defaultValue) {
+
+    /*package*/ static <T> T[] getProp(Map<String, Variant<?>> props, String key, @NonNull T[] defaultValue) {
         if (props.get(key) != null) {
-            //noinspection unchecked
-            List<T> list = (List<T>)(props.get(key).getValue());
+            @SuppressWarnings("unchecked")
+            List<T> list = (List<T>) props.get(key).getValue();
             return list.toArray(defaultValue);
         } else {
             return defaultValue;
         }
     }
 
-    /*package*/ static String getProp(Map<String, Variant> props, String key, String defaultValue) {
+    /*package*/ static String getProp(Map<String, Variant<?>> props, String key, String defaultValue) {
         return props.get(key) != null ? props.get(key).getValue().toString() : defaultValue;
     }
 
-    /*package*/ static <T extends Enum> T getProp(Map<String, Variant> props, String key, T defaultValue) {
-        return (T) Enum.valueOf(defaultValue.getClass(), getProp(props, key, defaultValue.toString()));
+    /*package*/ static <T extends Enum<T>> T getProp(Map<String, Variant<?>> props, String key, T defaultValue) {
+        return Enum.valueOf(defaultValue.getDeclaringClass(), getProp(props, key, defaultValue.toString()));
     }
-
 
 }

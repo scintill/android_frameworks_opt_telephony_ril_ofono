@@ -70,7 +70,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     public Object getCurrentCalls() {
         List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
         //Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
-        for (Map<String, Variant> callProps : mCallsProps.values()) {
+        for (Map<String, Variant<?>> callProps : mCallsProps.values()) {
             DriverCall call = new DriverCall();
             call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
             call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
@@ -98,7 +98,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return new PrivResponseOb(calls);
     }
 
-    private final Map<String, Map<String, Variant>> mCallsProps = new HashMap<>();
+    private final Map<String, Map<String, Variant<?>>> mCallsProps = new HashMap<>();
     private ConcurrentLinkedQueue<Integer> mAvailableCallIndices; {
         mAvailableCallIndices = new ConcurrentLinkedQueue<>();
         // GsmCallTracker.MAX_CONNECTIONS = 7, CDMA allows 8
@@ -111,7 +111,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     public void handle(VoiceCallManager.CallAdded s) {
         String callPath = s.path.getPath();
         Rlog.d(TAG, "handle CallAdded "+ callPath);
-        Map<String, Variant> newCallProps = new HashMap<>(s.properties);
+        Map<String, Variant<?>> newCallProps = new HashMap<>(s.properties);
         newCallProps.put(PROPNAME_CALL_INDEX, new Variant<>(mAvailableCallIndices.remove()));
         putOrMerge2dProps(mCallsProps, callPath, newCallProps);
 
@@ -135,7 +135,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     private String getDbusPathForCallIndex(int i) {
         synchronized (mCallsProps) {
-            for (Map.Entry<String, Map<String, Variant>> entry : mCallsProps.entrySet()) {
+            for (Map.Entry<String, Map<String, Variant<?>>> entry : mCallsProps.entrySet()) {
                 if (getProp(entry.getValue(), PROPNAME_CALL_INDEX, -1) == i) {
                     return entry.getKey();
                 }
@@ -156,7 +156,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
 
         Path dialedCallPath = mCallManager.Dial(address, clirModeStr);
-        Map<String, Variant> dialedCallProps = new HashMap<>();
+        Map<String, Variant<?>> dialedCallProps = new HashMap<>();
         dialedCallProps.put(PROPNAME_CALL_MOBORIG, new Variant<>(true));
         putOrMerge2dProps(mCallsProps, dialedCallPath.getPath(), dialedCallProps);
         Rlog.d(TAG, "dialed "+dialedCallPath.getPath());
@@ -186,9 +186,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     @RilMethod
     public Object hangupWaitingOrBackground() {
         boolean oneSucceeded = false, oneExcepted = false;
-        for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
+        for (Map.Entry<String, Map<String, Variant<?>>> callPropsEntry : mCallsProps.entrySet()) {
             String callPath = callPropsEntry.getKey();
-            Map<String, Variant> callProps = callPropsEntry.getValue();
+            Map<String, Variant<?>> callProps = callPropsEntry.getValue();
             try {
                 DriverCall.State callState = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
                 // TODO which states should be hungup? should we only hang up one?
@@ -222,9 +222,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     @RilMethod
     public Object acceptCall() {
-        for (Map.Entry<String, Map<String, Variant>> callPropsEntry : mCallsProps.entrySet()) {
+        for (Map.Entry<String, Map<String, Variant<?>>> callPropsEntry : mCallsProps.entrySet()) {
             String callPath = callPropsEntry.getKey();
-            Map<String, Variant> callProps = callPropsEntry.getValue();
+            Map<String, Variant<?>> callProps = callPropsEntry.getValue();
             if (Utils.parseOfonoCallState(getProp(callProps, "State", "")) == DriverCall.State.INCOMING) {
                 VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
                 call.Answer();

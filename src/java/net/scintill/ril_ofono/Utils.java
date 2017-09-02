@@ -96,8 +96,8 @@ public abstract class Utils {
         return elements[3].getMethodName();
     }
 
-    /*package*/ static Field getField(Object o, String fieldname) throws NoSuchFieldException {
-        for (Class cls = o.getClass(); cls.getSuperclass() != null; cls = cls.getSuperclass()) {
+    /*package*/ static Field getField(Class<?> cls, String fieldname) throws NoSuchFieldException {
+        for (; cls.getSuperclass() != null; cls = cls.getSuperclass()) {
             try {
                 return cls.getDeclaredField(fieldname);
             } catch (NoSuchFieldException e) {

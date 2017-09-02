@@ -36,7 +36,7 @@ public interface SupplementaryServices extends DBusInterface
       }
    }
 
-  public Pair<String, Variant> Initiate(String command);
+  public Pair<String, Variant<?>> Initiate(String command);
   public String Respond(String reply);
   public void Cancel();
   public Map<String,Variant> GetProperties();
