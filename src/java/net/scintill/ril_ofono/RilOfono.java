@@ -121,27 +121,18 @@ public class RilOfono implements RilInterface {
     }
 
     /*package*/ void onModemAvail() {
-        mMainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                // see RIL.java for RIL_UNSOL_RIL_CONNECTED
-                mRilWrapper.setRadioPower(false, cbToMsg(new Handler.Callback() {
-                    @Override
-                    public boolean handleMessage(Message msg) {
-                        AsyncResult ar = (AsyncResult) msg.obj;
-                        if (ar.exception == null) {
-                            setRadioState(RadioState.RADIO_OFF);
-                        } else {
-                            setRadioState(RadioState.RADIO_UNAVAILABLE);
-                            Rlog.e(TAG, "onModemAvail: setRadioPower(false) returned an exception", ar.exception);
-                        }
-                        return true;
-                    }
-                }));
-                Rlog.d(TAG, "notifyRegistrantsRilConnectionChanged");
-                mRilWrapper.updateRilConnection(RIL_VERSION);
-            }
-        });
+        // RIL.java for RIL_UNSOL_RIL_CONNECTED does this
+        try {
+            setRadioPower(false);
+        } catch (Throwable t) {
+            setRadioState(RadioState.RADIO_UNAVAILABLE);
+            Rlog.e(TAG, "onModemAvail: setRadioPower(false) threw an exception", t);
+            return;
+        }
+
+        setRadioState(RadioState.RADIO_OFF);
+
+        mRilWrapper.updateRilConnection(RIL_VERSION);
         // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
     }
 
@@ -917,8 +908,9 @@ public class RilOfono implements RilInterface {
         }
     }
 
-    private Message cbToMsg(Handler.Callback cb) {
-        return new Handler(cb).obtainMessage();
+    /*package*/ static void notifyResultAndLog(String logSuffix, RegistrantList list, Object result, boolean priv) {
+        Rlog.i(TAG, "notify "+logSuffix+" "+(priv ? privStr("") : toDebugString(result)));
+        list.notifyResult(result);
     }
 
     private static void postDebounced(Handler h, DebouncedRunnable r, long delayMillis) {
@@ -934,10 +926,8 @@ public class RilOfono implements RilInterface {
         sInstance.mDbusHandler.post(r);
     }
 
-    /*package*/ static void runOnMainThread(Runnable r) {
-        sInstance.mMainHandler.post(r);
-    }
-
+    // We often won't care much what thread it runs on, but in order to use a Handler, I guess we need
+    // to specify a thread.
     /*package*/ static void runOnMainThreadDebounced(DebouncedRunnable r, long delayMillis) {
         postDebounced(sInstance.mMainHandler, r, delayMillis);
     }

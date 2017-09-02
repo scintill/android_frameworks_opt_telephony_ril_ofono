@@ -19,7 +19,6 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.RegistrantList;
 import android.telephony.Rlog;
 
 import com.android.internal.telephony.CommandException;
@@ -35,6 +34,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
+import static net.scintill.ril_ofono.RilOfono.RegistrantList;
+import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
 /*package*/ class SimModule extends PropManager {
@@ -125,8 +126,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private DebouncedRunnable mFnNotifySimChanged = new DebouncedRunnable() {
         @Override
         public void run() {
-            Rlog.d(TAG, "notify iccStatusChanged");
-            mIccStatusChangedRegistrants.notifyRegistrants();
+            notifyResultAndLog("icc status", mIccStatusChangedRegistrants, null, false);
         }
     };
 

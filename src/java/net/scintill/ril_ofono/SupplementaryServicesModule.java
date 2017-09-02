@@ -45,9 +45,9 @@ import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOT_SUP
         // TODO do on a separate thread? oFono docs seem to imply this will block everything anyway
         Pair<String, Variant> ussdResponse = mSupplSvcs.Initiate(ussdString);
         if (!ussdResponse.a.equals("USSD")) {
-            mUSSDRegistrants.notifyResult(new String[]{""+USSD_MODE_NOT_SUPPORTED, null});
+            RilOfono.notifyResultAndLog("ussd n/a", mUSSDRegistrants, new String[]{""+USSD_MODE_NOT_SUPPORTED, null}, false);
         } else {
-            mUSSDRegistrants.notifyResult(new String[]{""+USSD_MODE_NOTIFY, (String) ussdResponse.b.getValue()});
+            RilOfono.notifyResultAndLog("ussd", mUSSDRegistrants, new String[]{""+USSD_MODE_NOTIFY, (String) ussdResponse.b.getValue()}, true);
         }
         return null;
     }

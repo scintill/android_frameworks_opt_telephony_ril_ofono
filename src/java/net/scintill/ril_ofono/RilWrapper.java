@@ -21,7 +21,6 @@ package net.scintill.ril_ofono;
 
 import android.content.Context;
 import android.os.Registrant;
-import android.os.RegistrantList;
 import android.telephony.Rlog;
 
 import com.android.internal.telephony.BaseCommands;
@@ -31,6 +30,7 @@ import java.lang.reflect.Field;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.RILConstants.NO_PHONE;
+import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.respondExc;
 import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;
@@ -51,7 +51,7 @@ public final class RilWrapper extends BaseCommands {
     /*package*/ void updateRilConnection(int version) {
         this.mRilVersion = version;
         if (mRilConnectedRegistrants != null) {
-            mRilConnectedRegistrants.notifyResult(version);
+            notifyResultAndLog("ril connected", mRilConnectedRegistrants, version, false);
         }
     }
 
@@ -84,12 +84,13 @@ public final class RilWrapper extends BaseCommands {
     // Promote some members to package visibility
     ///////////////////////////
 
-    /*package*/ android.os.RegistrantList
-            mVoiceNetworkStateRegistrants = super.mVoiceNetworkStateRegistrants,
-            mIccStatusChangedRegistrants = super.mIccStatusChangedRegistrants,
-            mVoiceRadioTechChangedRegistrants = super.mVoiceRadioTechChangedRegistrants,
-            mCallStateRegistrants = super.mCallStateRegistrants,
-            mDataNetworkStateRegistrants = super.mDataNetworkStateRegistrants;
+    /*package*/ RilOfono.RegistrantList
+            mVoiceNetworkStateRegistrants = new RegistrantListAndroidTypeWrapper(super.mVoiceNetworkStateRegistrants),
+            mIccStatusChangedRegistrants = new RegistrantListAndroidTypeWrapper(super.mIccStatusChangedRegistrants),
+            mVoiceRadioTechChangedRegistrants = new RegistrantListAndroidTypeWrapper(super.mVoiceRadioTechChangedRegistrants),
+            mCallStateRegistrants = new RegistrantListAndroidTypeWrapper(super.mCallStateRegistrants),
+            mDataNetworkStateRegistrants = new RegistrantListAndroidTypeWrapper(super.mDataNetworkStateRegistrants),
+            mRilConnectedRegistrants = new RegistrantListAndroidTypeWrapper(super.mRilConnectedRegistrants);
 
     /*package*/ void setRadioStateHelper(RadioState newState) {
         setRadioState(newState);
@@ -122,6 +123,17 @@ public final class RilWrapper extends BaseCommands {
             } catch (IllegalAccessException e) {
                 throw new RuntimeException("unable to get registrant", e);
             }
+        }
+    }
+
+    class RegistrantListAndroidTypeWrapper implements RilOfono.RegistrantList {
+        android.os.RegistrantList mList;
+        RegistrantListAndroidTypeWrapper(android.os.RegistrantList list) {
+            mList = list;
+        }
+        @Override
+        public void notifyResult(Object result) {
+            mList.notifyResult(result);
         }
     }
 

@@ -36,11 +36,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
+import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.respondExc;
 import static net.scintill.ril_ofono.RilOfono.respondOk;
-import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
 
 /*package*/ class SmsModule {
 
@@ -114,13 +114,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
                 throw new IllegalArgumentException("Null returned from parser");
             }
 
-            final SmsMessage fmsg = msg;
-            runOnMainThread(new Runnable() {
-                @Override
-                public void run() {
-                    mSmsRegistrants.notifyResult(fmsg);
-                }
-            });
+            notifyResultAndLog("sms", mSmsRegistrants, msg, true);
         } catch (Throwable t) {
             Rlog.e(TAG, "Error handling incoming PDU "+privStr(IccUtils.bytesToHexString(s.pdu)+" tpdu_len="+s.tpdu_len), privExc(t));
         }

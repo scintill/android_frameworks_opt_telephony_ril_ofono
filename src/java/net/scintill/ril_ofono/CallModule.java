@@ -19,7 +19,6 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.RegistrantList;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
 
@@ -44,9 +43,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
+import static net.scintill.ril_ofono.RilOfono.RegistrantList;
+import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
-import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
 /*package*/ class CallModule extends PropManager {
@@ -115,7 +115,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         newCallProps.put(PROPNAME_CALL_INDEX, new Variant<>(mAvailableCallIndices.remove()));
         putOrMerge2dProps(mCallsProps, callPath, newCallProps);
 
-        runOnMainThread(mFnNotifyCallStateChanged);
+        notifyResultAndLog("call state - added", mCallStateRegistrants, null, false);
     }
 
     public void handle(VoiceCall.PropertyChanged s) {
@@ -129,7 +129,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         int callIndex = getProp(mCallsProps.get(callPath), PROPNAME_CALL_INDEX, -1);
         mCallsProps.remove(callPath);
         if (callIndex != -1) mAvailableCallIndices.add(callIndex);
-        runOnMainThread(mFnNotifyCallStateChanged);
+        notifyResultAndLog("call state - removed", mCallStateRegistrants, null, false);
     }
 
     private String getDbusPathForCallIndex(int i) {
@@ -243,7 +243,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     final DebouncedRunnable mFnNotifyCallStateChanged = new DebouncedRunnable() {
         @Override
         public void run() {
-            mCallStateRegistrants.notifyResult(null);
+            notifyResultAndLog("call state", mCallStateRegistrants, null, false);
         }
     };
 

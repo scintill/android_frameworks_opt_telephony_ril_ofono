@@ -19,7 +19,6 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.RegistrantList;
 import android.telephony.Rlog;
 import android.telephony.SignalStrength;
 
@@ -47,7 +46,8 @@ import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UMTS;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandsInterface.RadioState;
-import static net.scintill.ril_ofono.RilOfono.runOnMainThread;
+import static net.scintill.ril_ofono.RilOfono.RegistrantList;
+import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
 /*package*/ class ModemModule extends PropManager {
@@ -163,23 +163,13 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     protected void onPropChange(Modem modem, String name, Variant value) {
         if (name.equals("Online")) {
             final boolean online = (Boolean) value.getValue();
-            runOnMainThread(new Runnable() {
-                @Override
-                public void run() {
-                    RilOfono.sInstance.setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
-                }
-            });
+            RilOfono.sInstance.setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
         }
     }
 
     protected void onPropChange(NetworkRegistration netReg, String name, Variant value) {
         if (name.equals("Strength")) {
-            runOnMainThread(new Runnable() {
-                @Override
-                public void run() {
-                    mSignalStrengthRegistrants.notifyResult(getSignalStrength());
-                }
-            });
+            notifyResultAndLog("signal strength", mSignalStrengthRegistrants, getSignalStrength(), false);
         } else {
             runOnMainThreadDebounced(mFnNotifyNetworkChanged, 350);
         }
@@ -189,10 +179,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     final DebouncedRunnable mFnNotifyNetworkChanged = new DebouncedRunnable() {
         @Override
         public void run() {
-            Rlog.d(TAG, "notify voiceNetworkState");
-            mVoiceNetworkStateRegistrants.notifyRegistrants();
-            Rlog.d(TAG, "notify voiceRadioTechChanged");
-            mVoiceRadioTechChangedRegistrants.notifyResult(getVoiceRadioTechnologyAsyncResult());
+            notifyResultAndLog("voice netstate", mVoiceNetworkStateRegistrants, null, false);
+            notifyResultAndLog("voice radiotech changed", mVoiceRadioTechChangedRegistrants, getVoiceRadioTechnologyAsyncResult(), false);
         }
     };
 

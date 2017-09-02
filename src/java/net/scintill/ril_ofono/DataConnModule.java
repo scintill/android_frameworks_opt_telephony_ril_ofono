@@ -19,7 +19,6 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.RegistrantList;
 import android.telephony.Rlog;
 import android.text.TextUtils;
 
@@ -46,6 +45,8 @@ import java.util.Map;
 import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
+import static net.scintill.ril_ofono.RilOfono.RegistrantList;
+import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
@@ -233,7 +234,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         public void run() {
             Object calls = getDataCallListImpl();
             Rlog.d(TAG, "notify dataNetworkState "+privStr(calls));
-            mDataNetworkStateRegistrants.notifyResult(calls);
+            notifyResultAndLog("data netstate", mDataNetworkStateRegistrants, calls, true);
         }
     };
 
