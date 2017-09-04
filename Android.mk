@@ -20,7 +20,7 @@ LOCAL_PATH := $(call my-dir)
 # Build third-party libraries (separately so we can ignore warnings)
 include $(CLEAR_VARS)
 	LOCAL_MODULE := RilOfono.3rdparty
-	LOCAL_SRC_FILES := $(call all-java-files-under,lib/java/dbus) \
+	LOCAL_SRC_FILES := $(call find-subdir-files,lib/java/dbus -path lib/java/dbus/org/freedesktop/dbus/test -prune -o \( -name "*.java" -print \)) \
 						$(call all-java-files-under,lib/java/debug) \
 						$(call all-java-files-under,lib/java/ofono)
 include $(BUILD_STATIC_JAVA_LIBRARY)
