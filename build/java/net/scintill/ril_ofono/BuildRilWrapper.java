@@ -68,25 +68,30 @@ public class BuildRilWrapper {
         }); // for comparing with old manually autogenned code
 
         for (Method commandsIfaceMethod : commandsIfaceMethods) {
-            Class<?> moduleIface = findModuleInterface(commandsIfaceMethod);
-            if (moduleIface == null) {
+            Class<?>[] paramTypesExcludingMessage = getParameterTypesExcludingMessage(commandsIfaceMethod).toArray(new Class<?>[0]);
+            Class<?> moduleClass = findModuleClass(commandsIfaceMethod, paramTypesExcludingMessage);
+            if (moduleClass == null) {
                 continue; // <---
             }
+            Method moduleMethod = moduleClass.getMethod(commandsIfaceMethod.getName(), paramTypesExcludingMessage);
 
             os.println(getMethodSignature(commandsIfaceMethod) + " {");
             String messageParamName = "msg";
             Class[] paramTypes = commandsIfaceMethod.getParameterTypes();
-            boolean isAsync = getParameterTypesExcludingMessage(commandsIfaceMethod).size() != paramTypes.length;
+            boolean isAsync = paramTypesExcludingMessage.length != paramTypes.length;
+            boolean isOkOnMainThread = moduleMethod.isAnnotationPresent(OkOnMainThread.class);
             if (isAsync) {
-                os.println("runOnDbusThread(new Runnable() {");
-                os.println("public void run() {");
+                if (!isOkOnMainThread) {
+                    os.println("runOnDbusThread(new Runnable() {");
+                    os.println("public void run() {");
+                }
                 os.println("sCurrentMsg = msg;");
                 os.println("try {");
                 os.print("Object ret = ");
             } else {
                 throw new RuntimeException("is not async! generation of synchronous methods not implemented");
             }
-            String moduleVarName = "m"+moduleIface.getSimpleName().replace("Interface", "Module").replace("Ril", "");
+            String moduleVarName = "m"+(moduleClass != RilOfono.class ? moduleClass.getSimpleName() : "MiscModule");
             os.print(moduleVarName+"." + commandsIfaceMethod.getName() + "(");
             char paramName = 'a';
             for (Class<?> paramType : paramTypes) {
@@ -106,8 +111,10 @@ public class BuildRilWrapper {
             os.println("Rlog.e(TAG, \"Uncaught exception in " + commandsIfaceMethod.getName() + "\", privExc(thr));");
             os.println("respondExc(\"" + commandsIfaceMethod.getName() + "\", " + messageParamName + ", new CommandException(GENERIC_FAILURE), null);");
             os.println("}");
-            os.println("}");
-            os.println("});");
+            if (!isOkOnMainThread) {
+                os.println("}");
+                os.println("});");
+            }
             os.println("}");
             os.println();
         }
@@ -156,21 +163,21 @@ public class BuildRilWrapper {
         return list;
     }
 
-    private static final Class<?>[] moduleIfaces = new Class<?>[] {
-            RilModemInterface.class, RilSmsInterface.class, RilSimInterface.class,
-            RilVoicecallInterface.class, RilDatacallInterface.class,
-            RilSupplementaryServicesInterface.class,
-            RilMiscInterface.class,
+    private static final Class<?>[] moduleClasses = new Class<?>[] {
+            ModemModule.class, SmsModule.class, SimModule.class,
+            VoicecallModule.class, DatacallModule.class,
+            SupplementaryServicesModule.class,
+            RilOfono.class,
     };
 
-    private static Class<?> findModuleInterface(Method commandsIfaceMethod) {
-        for (Class<?> moduleIface : moduleIfaces) {
+    private static Class<?> findModuleClass(Method commandsIfaceMethod, Class[] paramTypesExcludingMessage) {
+        for (Class<?> moduleClass : moduleClasses) {
             try {
-                moduleIface.getMethod(commandsIfaceMethod.getName(), getParameterTypesExcludingMessage(commandsIfaceMethod).toArray(new Class<?>[0]));
+                moduleClass.getMethod(commandsIfaceMethod.getName(), paramTypesExcludingMessage);
             } catch (NoSuchMethodException e) {
                 continue; // <--
             }
-            return moduleIface;
+            return moduleClass;
         }
         return null;
     }

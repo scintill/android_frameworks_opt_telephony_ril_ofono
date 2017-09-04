@@ -76,19 +76,22 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         mirrorProps(NetworkRegistration.class, mNetReg, NetworkRegistration.PropertyChanged.class, mNetRegProps);
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getIMEI() {
         // TODO GSM-specific?
         return new PrivResponseOb(getProp(mModemProps, "Serial", ""));
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getIMEISV() {
         // TODO GSM-specific?
         return new PrivResponseOb(getProp(mModemProps, "SoftwareVersionNumber", ""));
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getSignalStrength() {
         // TODO gsm-specific
         Byte signalPercent = getProp(mNetRegProps, "Strength", (Byte)null);
@@ -97,7 +100,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
                 99, -1, -1, -1, -1, -1, true);
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getVoiceRegistrationState() {
         OfonoRegistrationState state = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown);
         if (!state.isRegistered()) {
@@ -112,7 +116,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getOperator() {
         String STAR_EMOJI = "🌠";
 
@@ -131,7 +136,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    @RilMethod
+    @Override
     public Object setRadioPower(final boolean on) {
         Rlog.v(TAG, "setRadioPower("+on+")");
 
@@ -139,7 +144,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return null;
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getNetworkSelectionMode() {
         String mode = getProp(mNetRegProps, "Mode", (String)null);
         if (mode == null) {
@@ -149,14 +155,16 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getBasebandVersion() {
         return getProp(mModemProps, "Revision", "");
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getVoiceRadioTechnology() {
-        return getVoiceRadioTechnologyAsyncResult();
+        return getVoiceRadioTechnologyImpl();
     }
 
     protected void onPropChange(Modem modem, String name, Variant<?> value) {
@@ -179,7 +187,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         @Override
         public void run() {
             notifyResultAndLog("voice netstate", mVoiceNetworkStateRegistrants, null, false);
-            notifyResultAndLog("voice radiotech changed", mVoiceRadioTechChangedRegistrants, getVoiceRadioTechnologyAsyncResult(), false);
+            notifyResultAndLog("voice radiotech changed", mVoiceRadioTechChangedRegistrants, getVoiceRadioTechnologyImpl(), false);
         }
     };
 
@@ -247,7 +255,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    private Object getVoiceRadioTechnologyAsyncResult() {
+    private Object getVoiceRadioTechnologyImpl() {
         // TODO is this really the right value?
         OfonoNetworkTechnology tech = getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown);
         return new int[]{ tech.serviceStateInt };

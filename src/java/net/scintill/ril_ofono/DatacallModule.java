@@ -50,7 +50,7 @@ import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
-/*package*/ class DataConnModule extends PropManager implements RilDatacallInterface {
+/*package*/ class DatacallModule extends PropManager implements RilDatacallInterface {
 
     private static final String TAG = RilOfono.TAG;
 
@@ -60,7 +60,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final Map<String, Variant<?>> mConnManProps = new HashMap<>();
     private final Map<String, Map<String, Variant<?>>> mConnectionsProps = new HashMap<>();
 
-    DataConnModule(RegistrantList dataNetworkStateRegistrants) {
+    DatacallModule(RegistrantList dataNetworkStateRegistrants) {
         mDataNetworkStateRegistrants = dataNetworkStateRegistrants;
 
         mConnMan = RilOfono.sInstance.getOfonoInterface(ConnectionManager.class);
@@ -71,7 +71,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         RilOfono.sInstance.registerDbusSignal(ConnectionContext.PropertyChanged.class, this);
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getDataRegistrationState() {
         return new String[] {
             // see e.g. GsmServiceStateTracker for the values and offsets, though some appear unused
@@ -81,12 +82,13 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         };
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getDataCallList() {
         return new PrivResponseOb(getDataCallListImpl());
     }
 
-    @RilMethod
+    @Override
     public Object setupDataCall(String radioTechnologyStr, String profile, String apnStr, String user, String password, String authType, String protocol) {
         OfonoNetworkTechnology radioTechnology = OfonoNetworkTechnology.fromSetupDataCallValue(Integer.valueOf(radioTechnologyStr));
         OfonoNetworkTechnology currentRadioTechnology = getProp(mConnManProps, "Bearer", OfonoNetworkTechnology._unknown);
@@ -117,7 +119,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return new PrivResponseOb(getDataCallResponse(ctxPath.getPath(), ctx.GetProperties()));
     }
 
-    @RilMethod
+    @Override
     public Object deactivateDataCall(int cid, int reason) {
         Rlog.d(TAG, "deactivateDataCall "+cid+" "+reason);
         String path = getPathFromUniqueIntId(cid);
@@ -174,7 +176,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return list;
     }
 
-    @RilMethod
+    @Override
     public Object setDataAllowed(boolean allowed) {
         Rlog.d(TAG, "setDataAllowed " + allowed);
         /*
@@ -188,7 +190,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return null;
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object setInitialAttachApn(String apn, String protocol, int authType, String username, String password) {
         // not sure what this means, or whether it's applicable to oFono
         throw new CommandException(REQUEST_NOT_SUPPORTED);

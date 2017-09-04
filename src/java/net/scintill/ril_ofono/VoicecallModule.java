@@ -49,14 +49,14 @@ import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
-/*package*/ class CallModule extends PropManager implements RilVoicecallInterface {
+/*package*/ class VoicecallModule extends PropManager implements RilVoicecallInterface {
 
     private static String TAG = RilOfono.TAG;
 
     private VoiceCallManager mCallManager;
     private RegistrantList mCallStateRegistrants;
 
-    /*package*/ CallModule(RegistrantList callStateRegistrants) {
+    /*package*/ VoicecallModule(RegistrantList callStateRegistrants) {
         mCallStateRegistrants = callStateRegistrants;
 
         mCallManager = RilOfono.sInstance.getOfonoInterface(VoiceCallManager.class);
@@ -66,7 +66,8 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         RilOfono.sInstance.registerDbusSignal(VoiceCallManager.CallRemoved.class, this);
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object getCurrentCalls() {
         List<DriverCall> calls = new ArrayList<>(mCallsProps.size());
         //Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
@@ -144,7 +145,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return null;
     }
 
-    @RilMethod
+    @Override
     public Object dial(final String address, int clirMode) {
         final String clirModeStr;
         switch (clirMode) {
@@ -163,7 +164,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return null;
     }
 
-    @RilMethod
+    @Override
     public Object dial(String address, int clirMode, UUSInfo uusInfo) {
         if (uusInfo != null) {
             throw new CommandException(MODE_NOT_SUPPORTED);
@@ -172,7 +173,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    @RilMethod
+    @Override
     public Object hangupConnection(final int gsmIndex) {
         String callPath = getDbusPathForCallIndex(gsmIndex);
         if (callPath == null) {
@@ -183,7 +184,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return null;
     }
 
-    @RilMethod
+    @Override
     public Object hangupWaitingOrBackground() {
         boolean oneSucceeded = false, oneExcepted = false;
         for (Map.Entry<String, Map<String, Variant<?>>> callPropsEntry : mCallsProps.entrySet()) {
@@ -220,7 +221,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    @RilMethod
+    @Override
     public Object acceptCall() {
         for (Map.Entry<String, Map<String, Variant<?>>> callPropsEntry : mCallsProps.entrySet()) {
             String callPath = callPropsEntry.getKey();
@@ -235,7 +236,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         throw new CommandException(CommandException.Error.NO_SUCH_ELEMENT);
     }
 
-    @RilMethod
+    @Override
     public Object rejectCall() {
         // TODO RIL.java sends UDUB, which may not be the same as what we're indirectly asking oFono to do here
         return hangupWaitingOrBackground();

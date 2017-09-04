@@ -39,7 +39,7 @@ import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOT_SUP
         mSupplSvcs = RilOfono.sInstance.getOfonoInterface(SupplementaryServices.class);
     }
 
-    @RilMethod
+    @Override
     public Object sendUSSD(final String ussdString) {
         // TODO network-initiated USSD. apparently they're rare, and it doesn't look like the rild backend of oFono supports them
         // TODO do on a separate thread? oFono docs seem to imply this will block everything anyway

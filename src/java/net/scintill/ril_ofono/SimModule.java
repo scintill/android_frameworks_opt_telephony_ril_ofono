@@ -59,12 +59,20 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         mirrorProps(MessageWaiting.class, msgWaiting, MessageWaiting.PropertyChanged.class, mMsgWaitingProps);
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
     public Object iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid) {
         return mSimFiles.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid);
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
+    public Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2) {
+        return iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, null);
+    }
+
+    @Override
+    @OkOnMainThread
     public Object getIMSIForApp(String aid) {
         // TODO GSM-specific?
         String imsi = getProp(mSimProps, "SubscriberIdentity", (String)null);
@@ -75,7 +83,14 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    @RilMethod
+    @Override
+    @OkOnMainThread
+    public Object getIMSI() {
+        return getIMSIForApp(null);
+    }
+
+    @Override
+    @OkOnMainThread
     public Object getIccCardStatus() {
         // TODO GSM-specific? can we/should we do more?
         IccCardStatus cardStatus = new IccCardStatus();

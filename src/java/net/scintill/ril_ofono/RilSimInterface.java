@@ -23,8 +23,12 @@ interface RilSimInterface {
 
     Object getIccCardStatus();
 
+    Object getIMSI();
+
     Object getIMSIForApp(String aid);
 
     Object iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid);
+
+    Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2);
 
 }

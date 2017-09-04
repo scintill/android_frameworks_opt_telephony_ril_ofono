@@ -86,8 +86,6 @@ interface RilMiscInterface {
 
     Object getMute();
 
-    Object getIMSI();
-
     Object sendDtmf(char c);
 
     Object startDtmf(char c);
@@ -117,8 +115,6 @@ interface RilMiscInterface {
     Object acknowledgeLastIncomingCdmaSms(boolean success, int cause);
 
     Object acknowledgeIncomingGsmSmsWithPdu(boolean success, String ackPdu);
-
-    Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2);
 
     Object queryCLIP();
 

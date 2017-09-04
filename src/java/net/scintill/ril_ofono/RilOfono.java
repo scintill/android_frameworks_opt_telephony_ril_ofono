@@ -93,8 +93,8 @@ public class RilOfono implements RilMiscInterface {
                     mRilWrapper.mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
                     mRilWrapper.mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
                     mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants);
-                    mRilWrapper.mVoicecallModule = new CallModule(mRilWrapper.mCallStateRegistrants);
-                    mRilWrapper.mDatacallModule = new DataConnModule(mRilWrapper.mDataNetworkStateRegistrants);
+                    mRilWrapper.mVoicecallModule = new VoicecallModule(mRilWrapper.mCallStateRegistrants);
+                    mRilWrapper.mDatacallModule = new DatacallModule(mRilWrapper.mDataNetworkStateRegistrants);
                     mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
                     ((ModemModule)mRilWrapper.mModemModule).onModemChange(false); // initialize starting state
                 } catch (Throwable t) {
@@ -128,181 +128,211 @@ public class RilOfono implements RilMiscInterface {
     }
 
     @Override
+    @OkOnMainThread
     public Object getImsRegistrationState() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setSuppServiceNotifications(boolean enable) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPin(String pin) {
         return supplyIccPinForApp(pin, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPinForApp(String pin, String aid) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPuk(String puk, String newPin) {
         return supplyIccPukForApp(puk, newPin, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPukForApp(String puk, String newPin, String aid) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPin2(String pin2) {
         return supplyIccPin2ForApp(pin2, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPin2ForApp(String pin2, String aid) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPuk2(String puk2, String newPin2) {
         return supplyIccPuk2ForApp(puk2, newPin2, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyIccPuk2ForApp(String puk2, String newPin2, String aid) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object changeIccPin(String oldPin, String newPin) {
         return changeIccPin2ForApp(oldPin, newPin, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object changeIccPinForApp(String oldPin, String newPin, String aidPtr) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object changeIccPin2(String oldPin2, String newPin2) {
         return changeIccPin2ForApp(oldPin2, newPin2, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object changeIccPin2ForApp(String oldPin2, String newPin2, String aidPtr) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object changeBarringPassword(String facility, String oldPwd, String newPwd) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object supplyDepersonalization(String netpin, String type) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getPDPContextList() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getDataCallProfile(int appType) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setDataProfile(DataProfile[] dps) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object hangupForegroundResumeBackground() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object switchWaitingOrHoldingAndActive() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object conference() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setPreferredVoicePrivacy(boolean enable) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getPreferredVoicePrivacy() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object separateConnection(int gsmIndex) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object explicitCallTransfer() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getLastCallFailCause() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getLastPdpFailCause() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getLastDataCallFailCause() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setMute(boolean enableMute) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getMute() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    public Object getIMSI() {
-        return mRilWrapper.mSimModule.getIMSIForApp(null);
-    }
-
-    @Override
+    @OkOnMainThread
     public Object sendDtmf(char c) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object startDtmf(char c) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object stopDtmf() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object sendBurstDtmf(String dtmfString, int on, int off) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
@@ -314,341 +344,403 @@ public class RilOfono implements RilMiscInterface {
     }
 
     @Override
+    @OkOnMainThread
     public Object sendCdmaSms(byte[] pdu) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object sendImsGsmSms(String smscPDU, String pdu, int retry, int messageRef) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object sendImsCdmaSms(byte[] pdu, int retry, int messageRef) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object deleteSmsOnSim(int index) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object deleteSmsOnRuim(int index) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object writeSmsToSim(int status, String smsc, String pdu) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object writeSmsToRuim(int status, String pdu) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object acknowledgeLastIncomingGsmSms(boolean success, int cause) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object acknowledgeLastIncomingCdmaSms(boolean success, int cause) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object acknowledgeIncomingGsmSmsWithPdu(boolean success, String ackPdu) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
-    public Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2) {
-        return mRilWrapper.mSimModule.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, null);
-    }
-
-    @Override
+    @OkOnMainThread
     public Object queryCLIP() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getCLIR() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCLIR(int clirMode) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object queryCallWaiting(int serviceClass) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCallWaiting(boolean enable, int serviceClass) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCallForward(int action, int cfReason, int serviceClass, String number, int timeSeconds) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object queryCallForwardStatus(int cfReason, int serviceClass, String number) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setNetworkSelectionModeAutomatic() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setNetworkSelectionModeManual(String operatorNumeric) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getAvailableNetworks() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object queryFacilityLock(String facility, String password, int serviceClass) {
         return queryFacilityLockForApp(facility, password, serviceClass, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object queryFacilityLockForApp(String facility, String password, int serviceClass, String appId) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setFacilityLock(String facility, boolean lockState, String password, int serviceClass) {
         return setFacilityLockForApp(facility, lockState, password, serviceClass, null);
     }
 
     @Override
+    @OkOnMainThread
     public Object setFacilityLockForApp(String facility, boolean lockState, String password, int serviceClass, String appId) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object cancelPendingUssd() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object resetRadio() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setBandMode(int bandMode) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object queryAvailableBandMode() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setPreferredNetworkType(int networkType) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getPreferredNetworkType() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getNeighboringCids() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setLocationUpdates(boolean enable) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getSmscAddress() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setSmscAddress(String address) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object reportSmsMemoryStatus(boolean available) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object reportStkServiceIsRunning() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object invokeOemRilRequestRaw(byte[] data) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object invokeOemRilRequestStrings(String[] strings) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object sendTerminalResponse(String contents) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object sendEnvelope(String contents) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object sendEnvelopeWithStatus(String contents) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object handleCallSetupRequestFromSim(boolean accept) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setGsmBroadcastActivation(boolean activate) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setGsmBroadcastConfig(SmsBroadcastConfigInfo[] config) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getGsmBroadcastConfig() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getDeviceIdentity() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getCDMASubscription() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object sendCDMAFeatureCode(String FeatureCode) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object queryCdmaRoamingPreference() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCdmaRoamingPreference(int cdmaRoamingType) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCdmaSubscriptionSource(int cdmaSubscriptionType) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getCdmaSubscriptionSource() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setTTYMode(int ttyMode) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object queryTTYMode() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCdmaBroadcastActivation(boolean activate) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCdmaBroadcastConfig(CdmaSmsBroadcastConfigInfo[] configs) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getCdmaBroadcastConfig() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object exitEmergencyCallbackMode() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object requestIsimAuthentication(String nonce) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object requestIccSimAuthentication(int authContext, String data, String aid) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getCellInfoList() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object setCellInfoListRate(int rateInMillis) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object nvReadItem(int itemID) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object nvWriteItem(int itemID, String itemValue) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object nvWriteCdmaPrl(byte[] preferredRoamingList) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object nvResetConfig(int resetType) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     @Override
+    @OkOnMainThread
     public Object getHardwareConfig() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
@@ -853,9 +945,9 @@ public class RilOfono implements RilMiscInterface {
 // mostly a tag type to remind me use this correctly (only construct one for each purpose)
 /*package*/ abstract class DebouncedRunnable implements Runnable {}
 
-// simple human-oriented marker saying that the annotated method is part of the RIL interface
-// (useful for the module classes that mix more internal methods)
-@Retention(RetentionPolicy.SOURCE)
+// does not need to be available at true runtime, just when BuildRilWrapper runs, but
+// I'm not sure that can be done without spelunking into classfiles
+@Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})
-/*package*/ @interface RilMethod {
+/*package*/ @interface OkOnMainThread {
 }

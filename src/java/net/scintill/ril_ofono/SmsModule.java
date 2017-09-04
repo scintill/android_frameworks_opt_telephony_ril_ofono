@@ -62,7 +62,7 @@ import static net.scintill.ril_ofono.RilOfono.respondOk;
         RilOfono.sInstance.registerDbusSignal(org.ofono.Message.PropertyChanged.class, this);
     }
 
-    @RilMethod
+    @Override
     public Object sendSMS(String smscPDUStr, String pduStr) {
         Rlog.d(TAG, "sendSMS");
         // TODO gsm-specific?
