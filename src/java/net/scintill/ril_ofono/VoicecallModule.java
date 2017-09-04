@@ -21,11 +21,13 @@ package net.scintill.ril_ofono;
 
 import android.telephony.PhoneNumberUtils;
 import android.telephony.Rlog;
+import android.text.TextUtils;
 
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.DriverCall;
 import com.android.internal.telephony.PhoneConstants;
+import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.UUSInfo;
 
 import org.freedesktop.dbus.Path;
@@ -43,6 +45,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
+import static com.android.internal.telephony.PhoneConstants.PRESENTATION_ALLOWED;
+import static com.android.internal.telephony.PhoneConstants.PRESENTATION_RESTRICTED;
+import static com.android.internal.telephony.PhoneConstants.PRESENTATION_UNKNOWN;
 import static net.scintill.ril_ofono.RilOfono.RegistrantList;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privExc;
@@ -80,18 +85,31 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
                 continue; // <--- skip unknown call
             }
 
-            String lineId = getProp(callProps, "LineIdentification", "");
-            if (lineId.length() == 0 || lineId.equals("withheld")) lineId = null;
-            call.TOA = PhoneNumberUtils.toaFromString(lineId);
             call.isMpty = false;
             call.isMT = !getProp(callProps, PROPNAME_CALL_MOBORIG, false);
             call.als = 0; // SimulatedGsmCallState
             call.isVoice = true;
             call.isVoicePrivacy = false; // oFono doesn't tell us
-            call.number = lineId;
-            call.numberPresentation = PhoneConstants.PRESENTATION_UNKNOWN;
+
+            call.number = getProp(callProps, "LineIdentification", "");
+            call.TOA = PhoneNumberUtils.TOA_Unknown;
+            if (call.number.equals("withheld")) {
+                call.numberPresentation = PRESENTATION_RESTRICTED;
+            } else if (TextUtils.isEmpty(call.number)) {
+                call.numberPresentation = PRESENTATION_UNKNOWN;
+            } else {
+                call.numberPresentation = PRESENTATION_ALLOWED;
+                call.TOA = PhoneNumberUtils.toaFromString(call.number);
+            }
+
             call.name = getProp(callProps, "Name", "");
-            call.namePresentation = PhoneConstants.PRESENTATION_UNKNOWN;
+            if (call.name.equals("withheld")) {
+                call.namePresentation = PRESENTATION_RESTRICTED;
+            } else if (TextUtils.isEmpty(call.name)) {
+                call.namePresentation = PRESENTATION_UNKNOWN;
+            } else {
+                call.namePresentation = PRESENTATION_ALLOWED;
+            }
             // TODO check if + is shown in number
             calls.add(call);
         }
