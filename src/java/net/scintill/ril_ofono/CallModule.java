@@ -49,7 +49,7 @@ import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
-/*package*/ class CallModule extends PropManager {
+/*package*/ class CallModule extends PropManager implements RilVoicecallInterface {
 
     private static String TAG = RilOfono.TAG;
 

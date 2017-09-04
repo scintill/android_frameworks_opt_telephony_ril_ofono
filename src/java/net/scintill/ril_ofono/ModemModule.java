@@ -50,7 +50,7 @@ import static net.scintill.ril_ofono.RilOfono.RegistrantList;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
-/*package*/ class ModemModule extends PropManager {
+/*package*/ class ModemModule extends PropManager implements RilModemInterface {
 
     private static final String TAG = RilOfono.TAG;
     private final RegistrantList mVoiceNetworkStateRegistrants;
@@ -59,7 +59,6 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     private Modem mModem;
     private final Map<String, Variant<?>> mModemProps = new HashMap<>();
-    private NetworkRegistration mNetReg;
     private final Map<String, Variant<?>> mNetRegProps = new HashMap<>();
 
     /*package*/ ModemModule(RegistrantList voiceNetworkStateRegistrants, RegistrantList voiceRadioTechChangedRegistrants, RilOfono.RegistrantList signalStrengthRegistrants) {
@@ -68,7 +67,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         mSignalStrengthRegistrants = signalStrengthRegistrants;
 
         mModem = RilOfono.sInstance.getOfonoInterface(Modem.class);
-        mNetReg = RilOfono.sInstance.getOfonoInterface(NetworkRegistration.class);
+        NetworkRegistration mNetReg = RilOfono.sInstance.getOfonoInterface(NetworkRegistration.class);
 
         RilOfono.sInstance.registerDbusSignal(Manager.ModemAdded.class, this);
         RilOfono.sInstance.registerDbusSignal(Manager.ModemRemoved.class, this);

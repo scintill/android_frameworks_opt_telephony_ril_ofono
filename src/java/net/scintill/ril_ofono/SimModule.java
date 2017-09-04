@@ -36,7 +36,7 @@ import static net.scintill.ril_ofono.RilOfono.RegistrantList;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
-/*package*/ class SimModule extends PropManager {
+/*package*/ class SimModule extends PropManager implements RilSimInterface {
 
     private static final String TAG = RilOfono.TAG;
 

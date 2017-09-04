@@ -26,7 +26,7 @@ import org.ofono.SupplementaryServices;
 import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOTIFY;
 import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOT_SUPPORTED;
 
-/*package*/ class SupplementaryServicesModule {
+/*package*/ class SupplementaryServicesModule implements RilSupplementaryServicesInterface {
 
     private static final String TAG = RilOfono.TAG;
 

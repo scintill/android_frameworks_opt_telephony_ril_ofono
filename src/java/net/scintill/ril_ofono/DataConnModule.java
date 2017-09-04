@@ -50,7 +50,7 @@ import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
-/*package*/ class DataConnModule extends PropManager {
+/*package*/ class DataConnModule extends PropManager implements RilDatacallInterface {
 
     private static final String TAG = RilOfono.TAG;
 

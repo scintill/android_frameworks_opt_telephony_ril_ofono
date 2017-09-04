@@ -42,7 +42,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.respondExc;
 import static net.scintill.ril_ofono.RilOfono.respondOk;
 
-/*package*/ class SmsModule {
+/*package*/ class SmsModule implements RilSmsInterface {
 
     private static final String TAG = RilOfono.TAG;
 
@@ -75,9 +75,9 @@ import static net.scintill.ril_ofono.RilOfono.respondOk;
             // TODO timeout on this method? at least we're not on the main thread,
             // but we could block anything else trying to get on the dbus thread
             Path sentMessage = mMessenger.SendPdu(smscPDU, pdu);
-            mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), RilWrapper.getCurrentMessage());
+            mMapSmsDbusPathToSenderCallback.put(sentMessage.getPath(), RilWrapperBase.getCurrentMessage());
         }
-        return RilWrapper.RETURN_LATER;
+        return RilWrapperBase.RETURN_LATER;
     }
 
     public void handleSendSmsComplete(String msgDbusPath, String status) {

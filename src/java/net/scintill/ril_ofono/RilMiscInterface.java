@@ -19,12 +19,11 @@
 
 package net.scintill.ril_ofono;
 
-import com.android.internal.telephony.UUSInfo;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
 import com.android.internal.telephony.dataconnection.DataProfile;
 import com.android.internal.telephony.gsm.SmsBroadcastConfigInfo;
 
-interface RilInterface {
+interface RilMiscInterface {
     Object getImsRegistrationState();
 
     Object setSuppServiceNotifications(boolean enable);
@@ -57,21 +56,11 @@ interface RilInterface {
 
     Object supplyDepersonalization(String netpin, String type);
 
-    Object getCurrentCalls();
-
     Object getPDPContextList();
-
-    Object getDataCallList();
 
     Object getDataCallProfile(int appType);
 
     Object setDataProfile(DataProfile[] dps);
-
-    Object setDataAllowed(boolean allowed);
-
-    Object dial(String address, int clirMode);
-
-    Object dial(String address, int clirMode, UUSInfo uusInfo);
 
     Object hangupForegroundResumeBackground();
 
@@ -85,10 +74,6 @@ interface RilInterface {
 
     Object separateConnection(int gsmIndex);
 
-    Object acceptCall();
-
-    Object rejectCall();
-
     Object explicitCallTransfer();
 
     Object getLastCallFailCause();
@@ -101,25 +86,7 @@ interface RilInterface {
 
     Object getMute();
 
-    Object getSignalStrength();
-
-    Object getVoiceRegistrationState();
-
     Object getIMSI();
-
-    Object getIMSIForApp(String aid);
-
-    Object getIMEI();
-
-    Object getIMEISV();
-
-    Object hangupConnection(int gsmIndex);
-
-    Object hangupWaitingOrBackground();
-
-    Object getDataRegistrationState();
-
-    Object getOperator();
 
     Object sendDtmf(char c);
 
@@ -128,8 +95,6 @@ interface RilInterface {
     Object stopDtmf();
 
     Object sendBurstDtmf(String dtmfString, int on, int off);
-
-    Object sendSMS(String smscPDUStr, String pduStr);
 
     Object sendSMSExpectMore(String smscPDU, String pdu);
 
@@ -147,8 +112,6 @@ interface RilInterface {
 
     Object writeSmsToRuim(int status, String pdu);
 
-    Object setRadioPower(boolean on);
-
     Object acknowledgeLastIncomingGsmSms(boolean success, int cause);
 
     Object acknowledgeLastIncomingCdmaSms(boolean success, int cause);
@@ -156,8 +119,6 @@ interface RilInterface {
     Object acknowledgeIncomingGsmSmsWithPdu(boolean success, String ackPdu);
 
     Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2);
-
-    Object iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid);
 
     Object queryCLIP();
 
@@ -177,11 +138,7 @@ interface RilInterface {
 
     Object setNetworkSelectionModeManual(String operatorNumeric);
 
-    Object getNetworkSelectionMode();
-
     Object getAvailableNetworks();
-
-    Object getBasebandVersion();
 
     Object queryFacilityLock(String facility, String password, int serviceClass);
 
@@ -190,8 +147,6 @@ interface RilInterface {
     Object setFacilityLock(String facility, boolean lockState, String password, int serviceClass);
 
     Object setFacilityLockForApp(String facility, boolean lockState, String password, int serviceClass, String appId);
-
-    Object sendUSSD(String ussdString);
 
     Object cancelPendingUssd();
 
@@ -253,10 +208,6 @@ interface RilInterface {
 
     Object queryTTYMode();
 
-    Object setupDataCall(String radioTechnology, String profile, String apn, String user, String password, String authType, String protocol);
-
-    Object deactivateDataCall(int cid, int reason);
-
     Object setCdmaBroadcastActivation(boolean activate);
 
     Object setCdmaBroadcastConfig(CdmaSmsBroadcastConfigInfo[] configs);
@@ -265,19 +216,13 @@ interface RilInterface {
 
     Object exitEmergencyCallbackMode();
 
-    Object getIccCardStatus();
-
     Object requestIsimAuthentication(String nonce);
 
     Object requestIccSimAuthentication(int authContext, String data, String aid);
 
-    Object getVoiceRadioTechnology();
-
     Object getCellInfoList();
 
     Object setCellInfoListRate(int rateInMillis);
-
-    Object setInitialAttachApn(String apn, String protocol, int authType, String username, String password);
 
     Object nvReadItem(int itemID);
 

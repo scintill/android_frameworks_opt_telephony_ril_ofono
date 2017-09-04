@@ -28,7 +28,6 @@ import android.telephony.Rlog;
 import android.text.TextUtils;
 
 import com.android.internal.telephony.CommandException;
-import com.android.internal.telephony.UUSInfo;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
 import com.android.internal.telephony.dataconnection.DataProfile;
 import com.android.internal.telephony.gsm.SmsBroadcastConfigInfo;
@@ -54,36 +53,23 @@ import java.util.Set;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandsInterface.RadioState;
 
-public class RilOfono implements RilInterface {
+public class RilOfono implements RilMiscInterface {
 
     /*package*/ static final String TAG = "RilOfono";
     private static final int BUILD_NUMBER = 12;
     /*package*/ static final boolean LOG_POTENTIALLY_SENSITIVE_INFO = true;
 
-    /*
-     * @TODO What does this mean to consumers? I picked 9 because it's less than 10, which is
-     * apparently when the icc*() methods we probably won't support were added.
-     */
-    private static final int RIL_VERSION = 9;
-
     private static final String DBUS_ADDRESS = "unix:path=/dev/socket/dbus";
 
-    private RilWrapper mRilWrapper;
+    private RilWrapperBase mRilWrapper;
     private Handler mDbusHandler;
     private Handler mMainHandler;
-
-    private ModemModule mModemModule;
-    private SmsModule mSmsModule;
-    private SimModule mSimModule;
-    private CallModule mCallModule;
-    private DataConnModule mDataConnModule;
-    private SupplementaryServicesModule mSupplSvcsModule;
 
     private DBusConnection mDbus;
 
     /*package*/ static RilOfono sInstance;
 
-    /*package*/ RilOfono(final RilWrapper rilWrapper) {
+    /*package*/ RilOfono(final RilWrapperBase rilWrapper) {
         sInstance = this;
         Rlog.d(TAG, "RilOfono "+BUILD_NUMBER+" starting");
 
@@ -103,13 +89,14 @@ public class RilOfono implements RilInterface {
                 try {
                     mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
 
-                    mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
-                    mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
-                    mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants);
-                    mCallModule = new CallModule(mRilWrapper.mCallStateRegistrants);
-                    mDataConnModule = new DataConnModule(mRilWrapper.mDataNetworkStateRegistrants);
-                    mSupplSvcsModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
-                    mModemModule.onModemChange(false); // initialize starting state
+                    mRilWrapper.mMiscModule = RilOfono.this;
+                    mRilWrapper.mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
+                    mRilWrapper.mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
+                    mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants);
+                    mRilWrapper.mVoicecallModule = new CallModule(mRilWrapper.mCallStateRegistrants);
+                    mRilWrapper.mDatacallModule = new DataConnModule(mRilWrapper.mDataNetworkStateRegistrants);
+                    mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
+                    ((ModemModule)mRilWrapper.mModemModule).onModemChange(false); // initialize starting state
                 } catch (Throwable t) {
                     throw new RuntimeException("exception while loading", t);
                 }
@@ -123,7 +110,7 @@ public class RilOfono implements RilInterface {
     /*package*/ void onModemAvail() {
         // RIL.java for RIL_UNSOL_RIL_CONNECTED does this
         try {
-            setRadioPower(false);
+            mRilWrapper.mModemModule.setRadioPower(false);
         } catch (Throwable t) {
             setRadioState(RadioState.RADIO_UNAVAILABLE);
             Rlog.e(TAG, "onModemAvail: setRadioPower(false) threw an exception", t);
@@ -132,7 +119,11 @@ public class RilOfono implements RilInterface {
 
         setRadioState(RadioState.RADIO_OFF);
 
+        // TODO What does this mean to consumers? I picked 9 because it's less than 10, which is
+        // apparently when the icc*() methods we won't support were added.
+        final int RIL_VERSION = 9;
         mRilWrapper.updateRilConnection(RIL_VERSION);
+
         // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
     }
 
@@ -217,18 +208,8 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object getCurrentCalls() {
-        return mCallModule.getCurrentCalls();
-    }
-
-    @Override
     public Object getPDPContextList() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    public Object getDataCallList() {
-        return mDataConnModule.getDataCallList();
     }
 
     @Override
@@ -239,21 +220,6 @@ public class RilOfono implements RilInterface {
     @Override
     public Object setDataProfile(DataProfile[] dps) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    public Object setDataAllowed(boolean allowed) {
-        return mDataConnModule.setDataAllowed(allowed);
-    }
-
-    @Override
-    public Object dial(String address, int clirMode) {
-        return mCallModule.dial(address, clirMode);
-    }
-
-    @Override
-    public Object dial(String address, int clirMode, UUSInfo uusInfo) {
-        return mCallModule.dial(address, clirMode, uusInfo);
     }
 
     @Override
@@ -287,16 +253,6 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object acceptCall() {
-        return mCallModule.acceptCall();
-    }
-
-    @Override
-    public Object rejectCall() {
-        return mCallModule.rejectCall();
-    }
-
-    @Override
     public Object explicitCallTransfer() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
@@ -327,53 +283,8 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object getSignalStrength() {
-        return mModemModule.getSignalStrength();
-    }
-
-    @Override
-    public Object getVoiceRegistrationState() {
-        return mModemModule.getVoiceRegistrationState();
-    }
-
-    @Override
     public Object getIMSI() {
-        return getIMSIForApp(null);
-    }
-
-    @Override
-    public Object getIMSIForApp(String aid) {
-        return mSimModule.getIMSIForApp(aid);
-    }
-
-    @Override
-    public Object getIMEI() {
-        return mModemModule.getIMEI();
-    }
-
-    @Override
-    public Object getIMEISV() {
-        return mModemModule.getIMEISV();
-    }
-
-    @Override
-    public Object hangupConnection(int gsmIndex) {
-        return mCallModule.hangupConnection(gsmIndex);
-    }
-
-    @Override
-    public Object hangupWaitingOrBackground() {
-        return mCallModule.hangupWaitingOrBackground();
-    }
-
-    @Override
-    public Object getDataRegistrationState() {
-        return mDataConnModule.getDataRegistrationState();
-    }
-
-    @Override
-    public Object getOperator() {
-        return mModemModule.getOperator();
+        return mRilWrapper.mSimModule.getIMSIForApp(null);
     }
 
     @Override
@@ -397,14 +308,9 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object sendSMS(String smscPDUStr, String pduStr) {
-        return mSmsModule.sendSMS(smscPDUStr, pduStr);
-    }
-
-    @Override
     public Object sendSMSExpectMore(String smscPDU, String pdu) {
         // TODO can oFono benefit from knowing to "expect more"?
-        return sendSMS(smscPDU, pdu);
+        return mRilWrapper.mSmsModule.sendSMS(smscPDU, pdu);
     }
 
     @Override
@@ -443,11 +349,6 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object setRadioPower(boolean on) {
-        return mModemModule.setRadioPower(on);
-    }
-
-    @Override
     public Object acknowledgeLastIncomingGsmSms(boolean success, int cause) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
@@ -464,12 +365,7 @@ public class RilOfono implements RilInterface {
 
     @Override
     public Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2) {
-        return iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, null);
-    }
-
-    @Override
-    public Object iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid) {
-        return mSimModule.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, aid);
+        return mRilWrapper.mSimModule.iccIOForApp(command, fileid, path, p1, p2, p3, data, pin2, null);
     }
 
     @Override
@@ -518,18 +414,8 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object getNetworkSelectionMode() {
-        return mModemModule.getNetworkSelectionMode();
-    }
-
-    @Override
     public Object getAvailableNetworks() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    public Object getBasebandVersion() {
-        return mModemModule.getBasebandVersion();
     }
 
     @Override
@@ -550,11 +436,6 @@ public class RilOfono implements RilInterface {
     @Override
     public Object setFacilityLockForApp(String facility, boolean lockState, String password, int serviceClass, String appId) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    public Object sendUSSD(String ussdString) {
-        return mSupplSvcsModule.sendUSSD(ussdString);
     }
 
     @Override
@@ -708,16 +589,6 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object setupDataCall(String radioTechnology, String profile, String apn, String user, String password, String authType, String protocol) {
-        return mDataConnModule.setupDataCall(radioTechnology, profile, apn, user, password, authType, protocol);
-    }
-
-    @Override
-    public Object deactivateDataCall(int cid, int reason) {
-        return mDataConnModule.deactivateDataCall(cid, reason);
-    }
-
-    @Override
     public Object setCdmaBroadcastActivation(boolean activate) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
@@ -738,11 +609,6 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object getIccCardStatus() {
-        return mSimModule.getIccCardStatus();
-    }
-
-    @Override
     public Object requestIsimAuthentication(String nonce) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
@@ -753,11 +619,6 @@ public class RilOfono implements RilInterface {
     }
 
     @Override
-    public Object getVoiceRadioTechnology() {
-        return mModemModule.getVoiceRadioTechnology();
-    }
-
-    @Override
     public Object getCellInfoList() {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
@@ -765,11 +626,6 @@ public class RilOfono implements RilInterface {
     @Override
     public Object setCellInfoListRate(int rateInMillis) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    public Object setInitialAttachApn(String apn, String protocol, int authType, String username, String password) {
-        return mDataConnModule.setInitialAttachApn(apn, protocol, authType, username, password);
     }
 
     @Override
