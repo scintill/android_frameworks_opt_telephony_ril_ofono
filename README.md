@@ -4,14 +4,14 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 
 # Roadmap
 
-1. Alpha implementation in Java
-	1. Write a RIL class that the com.android.phone app (via the telephony framework) will load. This class will interface with oFono.
-	1. The oFono instance will be using the `rilmodem` driver. Yes, this first version of the RIL will be built on a RIL! This will hopefully mean fewer "moving parts" and missing functionality to start, allowing us to focus on the basic architecture.
-1. Pivot oFono onto the `qmimodem` driver
-	1. May need to write an interface for `qmuxd`, or stop using it at that point (this may kill other hardware)
-1. Implement missing features in oFono's `qmimodem` (e.g. voice calls)
-	1. At this point we may hit some serious walls in regards to reverse-engineering this stuff. If that's a showstopper, I hope the work can still be useful to someone who wants to run an open Android RIL on a platform oFono supports better.
-1. Port to another language? (Rust, go? I'm sticking to Java to lower my learning curve and workload for now.)
+- [x] Alpha implementation
+	- [x] Write a RIL class that the com.android.phone app (via the telephony framework) will load. This class will interface with oFono.
+	- [x] The oFono instance will be using the `rilmodem` driver. Yes, this first version of the RIL will be built on a RIL! This will hopefully mean fewer "moving parts" and missing functionality to start, allowing us to focus on the basic architecture.
+- [x] Pivot oFono onto the `qmimodem` driver
+	- [x] Interface for `qmuxd` ([qmiserial2qmuxd](https://github.com/scintill/qmiserial2qmuxd/))
+	- [ ] Implement more features (some work will probably be needed in the qmimodem driver), refine things like error-handling, test
+	- [ ] Get rid of `qmuxd` and any other proprietary stuff we are relying on
+- [ ] Port to another language? (Rust, Go? For now, I'm using Java to lower my learning curve.)
 
 # Usage
 1. System patches
