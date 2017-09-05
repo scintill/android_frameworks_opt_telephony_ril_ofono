@@ -21,7 +21,7 @@ index 24ca895..7eef0e8 100644
  type dumpstate_socket, file_type;
  type fwmarkd_socket, file_type, mlstrustedobject;
 diff --git a/file_contexts b/file_contexts
-index 62802e0..5ab5b41 100644
+index 62802e0..06340e7 100644
 --- a/file_contexts
 +++ b/file_contexts
 @@ -77,6 +77,7 @@
@@ -32,14 +32,33 @@ index 62802e0..5ab5b41 100644
  /dev/socket/dnsproxyd	u:object_r:dnsproxyd_socket:s0
  /dev/socket/dumpstate	u:object_r:dumpstate_socket:s0
  /dev/socket/fwmarkd	u:object_r:fwmarkd_socket:s0
-@@ -135,6 +136,7 @@
+@@ -135,6 +136,9 @@
  /system/bin/vold	u:object_r:vold_exec:s0
  /system/bin/netd	u:object_r:netd_exec:s0
  /system/bin/rild	u:object_r:rild_exec:s0
-+/system/bin/dbus-daemon    u:object_r:dbus_daemon_exec:s0
++/system/bin/dbus-daemon     u:object_r:dbus_daemon_exec:s0
++/system/bin/ofonod          u:object_r:ofono_exec:s0
++/system/bin/qmiserial2qmuxd u:object_r:ofono_exec:s0
  /system/bin/mediaserver	u:object_r:mediaserver_exec:s0
  /system/bin/mdnsd	u:object_r:mdnsd_exec:s0
  /system/bin/installd	u:object_r:installd_exec:s0
+diff --git a/ofono.te b/ofono.te
+new file mode 100644
+index 0000000..e683e4c
+--- /dev/null
++++ b/ofono.te
+@@ -0,0 +1,11 @@
++type ofono, domain;
++type ofono_exec, exec_type, file_type;
++
++init_daemon_domain(ofono)
++qmux_socket(ofono);
++unix_socket_connect(ofono, dbus_daemon, dbus_daemon)
++
++allow ofono radio_data_file:dir create_dir_perms;
++allow ofono radio_data_file:file_class_set create_file_perms;
++# TODO restrict to only the one pty we need?
++allow ofono devpts:chr_file rw_file_perms;
 diff --git a/radio.te b/radio.te
 index 7d90706..3f54cc5 100644
 --- a/radio.te

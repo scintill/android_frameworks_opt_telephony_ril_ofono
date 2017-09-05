@@ -38,7 +38,7 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 
 # Features
 
-Nothing is thoroughly tested nor tried on a broad selection of hardware/networks yet, but here's what's been implemented:
+Nothing is thoroughly tested nor tried on a broad selection of hardware/networks yet, but here's what's been implemented (tested mostly with the rilmodem driver):
 
 * Basic SMS sending and receiving (multipart messages and some international characters tested)
 * Basic voicecalls: dialing, receiving, answering, rejecting
@@ -59,13 +59,13 @@ Nothing is thoroughly tested nor tried on a broad selection of hardware/networks
 * dexopt/proguard? - see notes in Android.mk
 * crashes in airplane mode trying to query properties on probably not-up interfaces
 * remove anonymous auth from dbus.conf (currently there to ease debugging; not needed for the RIL code to connect properly)
-* `init: Warning!  Service ofonod-debug needs a SELinux domain defined; please fix!` (probably prevents the debugger from being able to ptrace and dump info if ofonod crashes)
 
 # Code review
 
 These should be reviewed more closely for correctness and safety:
 
 * My changes to oFono (logging, SMS PDU patches)
+* selinux policy
 
 # License
 

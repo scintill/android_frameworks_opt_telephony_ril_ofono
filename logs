@@ -1,0 +1,28 @@
+#!/bin/bash
+# the emoji I currently put into the operator name wreaks havoc...
+ENSAFENBINARY="cat -v | sed s/\\\^M$//"
+COMMONARGS="-cS mylogcat -ts"
+
+exec multitail \
+	-M 0 \
+	-o 'window_number:[%d]' -o 'subwindow_number:[%d]' \
+	-o colorscheme:mylogcat \
+	-o 'cs_re_s:blue,,bold:^./(dalvikvm)\(' \
+	-o 'cs_re_s:blue,,bold:^./(Process)\(' \
+	-o 'cs_re_s:cyan:^./(ActivityManager)\(' \
+	-o 'cs_re_s:cyan:^./(ActivityThread)\(' \
+	-o 'cs_re_s:white,,bold:^./([^\(]*)\(' \
+	-o 'cs_re_s:green:^[^\(]*(\()[^\)]*(\))' \
+	-o 'cs_re:red,,inverse:[Pp]ermission [Dd]eni[ae][dl]' \
+	-o 'cs_re:red,,inverse:Caused by:' \
+	-o 'cs_re:cyan::' \
+	-o 'cs_re_s:red,,inverse:^(F)/[^:]*: (.*)$' \
+	-o 'cs_re_s:red:^(E)/[^:]*: (.*)$' \
+	-o 'cs_re_s:yellow:^(W).[^:]*: (.*)$' \
+	-o 'cs_re_s:green:^(V)/[^:]*: (.*)$' \
+	-o 'cs_re_s:cyan:^(I)/[^:]*: (.*)$' \
+	-o bright:1 -o titlebar:logcat \
+	$COMMONARGS -t radio:RilOfono               -l "adb logcat -b radio -s RilOfono:* | $ENSAFENBINARY" \
+	$COMMONARGS -t radio:ofonod                 -l "adb logcat -b radio -s ofonod:* | $ENSAFENBINARY" \
+	$COMMONARGS -t 'radio:not(RilOfono,ofonod)' -l "adb logcat -b radio RilOfono:S,ofonod:s | $ENSAFENBINARY" \
+	$COMMONARGS -t main                         -l "adb logcat | $ENSAFENBINARY" \
