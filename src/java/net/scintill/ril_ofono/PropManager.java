@@ -51,7 +51,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
             changed = !Objects.equal(value, propsToUpdate.put(name, value));
         }
         if (changed) {
-            Rlog.v(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
+            Rlog.i(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
         }
         return changed;
     }

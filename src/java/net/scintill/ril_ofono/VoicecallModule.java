@@ -26,8 +26,6 @@ import android.text.TextUtils;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.DriverCall;
-import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.UUSInfo;
 
 import org.freedesktop.dbus.Path;

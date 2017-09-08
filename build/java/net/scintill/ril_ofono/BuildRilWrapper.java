@@ -78,6 +78,7 @@ public class BuildRilWrapper {
             os.println(getMethodSignature(commandsIfaceMethod) + " {");
             String messageParamName = "msg";
             Class[] paramTypes = commandsIfaceMethod.getParameterTypes();
+            //os.printf("Rlog.v(TAG, \"%s \" + (%s != null ? %s.what : null) + \" \" + (%s != null ? %s.getTarget() : \"\"));%n", commandsIfaceMethod.getName(), messageParamName, messageParamName, messageParamName, messageParamName);
             boolean isAsync = paramTypesExcludingMessage.length != paramTypes.length;
             boolean isOkOnMainThread = moduleMethod.isAnnotationPresent(OkOnMainThread.class);
             if (isAsync) {

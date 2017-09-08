@@ -811,7 +811,7 @@ public class RilOfono implements RilMiscInterface {
 
         if (!quiet) {
             CharSequence debugString = toDebugString(o, privResponseOb != null);
-            Rlog.d(TAG, "respondOk from " + caller + ": " + debugString);
+            Rlog.v(TAG, "respondOk from " + caller + ": " + debugString);
         }
         if (response != null) {
             AsyncResult.forMessage(response, o, null);
@@ -830,7 +830,7 @@ public class RilOfono implements RilMiscInterface {
 
         if (!quiet) {
             CharSequence debugString = toDebugString(o, privResponseOb != null);
-            Rlog.d(TAG, "respondExc from "+caller+": "+exc.getCommandError()+" "+debugString);
+            Rlog.e(TAG, "respondExc from "+caller+": "+exc.getCommandError()+" "+debugString);
         }
         if (response != null) {
             AsyncResult.forMessage(response, o, exc);
@@ -839,7 +839,7 @@ public class RilOfono implements RilMiscInterface {
     }
 
     /*package*/ static void notifyResultAndLog(String logSuffix, RegistrantList list, Object result, boolean priv) {
-        Rlog.i(TAG, "notify "+logSuffix+" "+(priv ? privStr("") : toDebugString(result)));
+        Rlog.v(TAG, "notify "+logSuffix+" "+(priv ? privStr(toDebugString(result)) : toDebugString(result)));
         list.notifyResult(result);
     }
 
