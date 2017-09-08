@@ -37,4 +37,10 @@ interface RilVoicecallInterface {
 
     Object rejectCall();
 
+    Object sendDtmf(char c);
+
+    Object startDtmf(char c);
+
+    Object stopDtmf();
+
 }

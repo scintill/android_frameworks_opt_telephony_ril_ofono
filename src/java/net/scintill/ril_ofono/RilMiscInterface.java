@@ -86,12 +86,6 @@ interface RilMiscInterface {
 
     Object getMute();
 
-    Object sendDtmf(char c);
-
-    Object startDtmf(char c);
-
-    Object stopDtmf();
-
     Object sendBurstDtmf(String dtmfString, int on, int off);
 
     Object sendSMSExpectMore(String smscPDU, String pdu);

@@ -315,24 +315,6 @@ public class RilOfono implements RilMiscInterface {
 
     @Override
     @OkOnMainThread
-    public Object sendDtmf(char c) {
-        throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    @OkOnMainThread
-    public Object startDtmf(char c) {
-        throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    @OkOnMainThread
-    public Object stopDtmf() {
-        throw new CommandException(REQUEST_NOT_SUPPORTED);
-    }
-
-    @Override
-    @OkOnMainThread
     public Object sendBurstDtmf(String dtmfString, int on, int off) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }

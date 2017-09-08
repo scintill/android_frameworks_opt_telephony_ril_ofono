@@ -45,6 +45,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
 import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
+import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 import static com.android.internal.telephony.PhoneConstants.PRESENTATION_ALLOWED;
 import static com.android.internal.telephony.PhoneConstants.PRESENTATION_RESTRICTED;
 import static com.android.internal.telephony.PhoneConstants.PRESENTATION_UNKNOWN;
@@ -258,6 +259,27 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     public Object rejectCall() {
         // TODO RIL.java sends UDUB, which may not be the same as what we're indirectly asking oFono to do here
         return hangupWaitingOrBackground();
+    }
+
+    // XXX oFono doesn't seem to support timed DTMF presses; it just sends them at a fixed rate and duration
+    // we can't control.
+
+    @Override
+    public Object sendDtmf(char c) {
+        mCallManager.SendTones(String.valueOf(c));
+        return null;
+    }
+
+    @Override
+    public Object startDtmf(char c) {
+        return sendDtmf(c);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object stopDtmf() {
+        // I feel like we should give some indication we're not faithfully implementing the interface
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
     final DebouncedRunnable mFnNotifyCallStateChanged = new DebouncedRunnable() {

@@ -1,28 +1,29 @@
 #!/bin/bash
 # the emoji I currently put into the operator name wreaks havoc...
 ENSAFENBINARY="cat -v | sed s/\\\^M$//"
-COMMONARGS="-cS mylogcat -ts"
+COMMONARGS="-cS mylogcat"
 
 exec multitail \
 	-M 0 \
 	-o 'window_number:[%d]' -o 'subwindow_number:[%d]' \
 	-o colorscheme:mylogcat \
-	-o 'cs_re_s:blue,,bold:^./(dalvikvm)\(' \
-	-o 'cs_re_s:blue,,bold:^./(Process)\(' \
-	-o 'cs_re_s:cyan:^./(ActivityManager)\(' \
-	-o 'cs_re_s:cyan:^./(ActivityThread)\(' \
-	-o 'cs_re_s:white,,bold:^./([^\(]*)\(' \
+	-o 'cs_re_s:blue,,bold:^[0-9 :.-]*./(dalvikvm)\(' \
+	-o 'cs_re_s:blue,,bold:^[0-9 :.-]*./(Process)\(' \
+	-o 'cs_re_s:cyan:^[0-9 :.-]*./(ActivityManager)\(' \
+	-o 'cs_re_s:cyan:^[0-9 :.-]*./(ActivityThread)\(' \
+	-o 'cs_re_s:white,,bold:^[0-9 :.-]*./([^\(]*)\(' \
 	-o 'cs_re_s:green:^[^\(]*(\()[^\)]*(\))' \
 	-o 'cs_re:red,,inverse:[Pp]ermission [Dd]eni[ae][dl]' \
 	-o 'cs_re:red,,inverse:Caused by:' \
+	-o 'cs_re:white:^[0-9 :.-]*' \
 	-o 'cs_re:cyan::' \
-	-o 'cs_re_s:red,,inverse:^(F)/[^:]*: (.*)$' \
-	-o 'cs_re_s:red:^(E)/[^:]*: (.*)$' \
-	-o 'cs_re_s:yellow:^(W).[^:]*: (.*)$' \
-	-o 'cs_re_s:green:^(V)/[^:]*: (.*)$' \
-	-o 'cs_re_s:cyan:^(I)/[^:]*: (.*)$' \
-	-o bright:1 -o titlebar:logcat \
-	$COMMONARGS -t radio:RilOfono               -l "adb logcat -b radio -s RilOfono:* | $ENSAFENBINARY" \
-	$COMMONARGS -t radio:ofonod                 -l "adb logcat -b radio -s ofonod:* | $ENSAFENBINARY" \
-	$COMMONARGS -t 'radio:not(RilOfono,ofonod)' -l "adb logcat -b radio RilOfono:S,ofonod:s | $ENSAFENBINARY" \
-	$COMMONARGS -t main                         -l "adb logcat | $ENSAFENBINARY" \
+	-o 'cs_re_s:red,,inverse:^[0-9 :.-]*(F)/[^:]*: (.*)$' \
+	-o 'cs_re_s:red:^[0-9 :.-]*(E)/[^:]*: (.*)$' \
+	-o 'cs_re_s:yellow:^[0-9 :.-]*(W).[^:]*: (.*)$' \
+	-o 'cs_re_s:green:^[0-9 :.-]*(V)/[^:]*: (.*)$' \
+	-o 'cs_re_s:cyan:^[0-9 :.-]*(I)/[^:]*: (.*)$' \
+	-o titlebar:logcat \
+	$COMMONARGS -t radio:RilOfono               -l "adb logcat -v time -b radio -s RilOfono:* | $ENSAFENBINARY" \
+	$COMMONARGS -t radio:ofonod                 -l "adb logcat -v time -b radio -s ofonod:* | $ENSAFENBINARY" \
+	$COMMONARGS -t 'radio:not(RilOfono,ofonod)' -l "adb logcat -v time -b radio RilOfono:S,ofonod:s | $ENSAFENBINARY" \
+	$COMMONARGS -t main                         -l "adb logcat -v time | $ENSAFENBINARY" \
