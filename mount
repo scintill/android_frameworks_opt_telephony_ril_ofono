@@ -11,6 +11,7 @@ $CMBASE/frameworks/base/telecomm/java:\
 $CMBASE/frameworks/opt/telephony/src/java:\
 $CMBASE/libcore/luni/src/main/java:\
 $CMBASE/libcore/dalvik/src/main/java:\
-$CMBASE/packages/services/Telephony/src\
+$CMBASE/packages/services/Telephony/src:\
+$CMBASE/out/target/common/obj/JAVA_LIBRARIES/framework_intermediates/src/core/java\
  \
 $BASE/lib/java/android/

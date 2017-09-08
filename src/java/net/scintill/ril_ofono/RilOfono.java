@@ -19,10 +19,13 @@
 
 package net.scintill.ril_ofono;
 
+import android.content.Context;
 import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.INetworkManagementService;
 import android.os.Message;
+import android.os.ServiceManager;
 import android.os.StrictMode;
 import android.telephony.Rlog;
 import android.text.TextUtils;
@@ -94,7 +97,10 @@ public class RilOfono implements RilMiscInterface {
                     mRilWrapper.mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
                     mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants);
                     mRilWrapper.mVoicecallModule = new VoicecallModule(mRilWrapper.mCallStateRegistrants);
-                    mRilWrapper.mDatacallModule = new DatacallModule(mRilWrapper.mDataNetworkStateRegistrants);
+                    mRilWrapper.mDatacallModule = new DatacallModule(
+                            mRilWrapper.mDataNetworkStateRegistrants, mRilWrapper.mVoiceNetworkStateRegistrants,
+                            ((ModemModule)mRilWrapper.mModemModule).mVoiceRadioTechnologyGetter,
+                            INetworkManagementService.Stub.asInterface(ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE)));
                     mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
                     ((ModemModule)mRilWrapper.mModemModule).onModemChange(false); // initialize starting state
                 } catch (Throwable t) {

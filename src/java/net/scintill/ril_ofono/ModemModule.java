@@ -149,6 +149,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     public Object getNetworkSelectionMode() {
         String mode = getProp(mNetRegProps, "Mode", (String)null);
         if (mode == null) {
+            Rlog.w(TAG, "getNetworkSelectionMode(): oFono is not reporting the mode; returning CommandException");
             throw new CommandException(GENERIC_FAILURE);
         } else {
             return new int[]{ mode.equals("manual") ? 1 : 0 };
@@ -255,10 +256,16 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
+    /*package*/ final DatacallModule.VoiceRadioTechnologyGetter mVoiceRadioTechnologyGetter = new DatacallModule.VoiceRadioTechnologyGetter() {
+        @Override
+        public OfonoNetworkTechnology getVoiceRadioTechnology() {
+            return getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown);
+        }
+    };
+
     private Object getVoiceRadioTechnologyImpl() {
         // TODO is this really the right value?
-        OfonoNetworkTechnology tech = getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown);
-        return new int[]{ tech.serviceStateInt };
+        return new int[]{ mVoiceRadioTechnologyGetter.getVoiceRadioTechnology().serviceStateInt };
     }
 
 }

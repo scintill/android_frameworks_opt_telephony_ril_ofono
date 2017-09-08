@@ -19,6 +19,11 @@
 
 package net.scintill.ril_ofono;
 
+import android.net.InterfaceConfiguration;
+import android.net.LinkAddress;
+import android.net.NetworkUtils;
+import android.os.INetworkManagementService;
+import android.os.RemoteException;
 import android.telephony.Rlog;
 import android.text.TextUtils;
 
@@ -37,16 +42,21 @@ import org.ofono.ConnectionContext;
 import org.ofono.ConnectionManager;
 import org.ofono.StructPathAndProps;
 
+import java.net.Inet4Address;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import libcore.io.Memory;
 
 import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 import static net.scintill.ril_ofono.RilOfono.RegistrantList;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
+import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
@@ -55,13 +65,20 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private static final String TAG = RilOfono.TAG;
 
     private ConnectionManager mConnMan;
+    private INetworkManagementService mNetworkManagementService;
     private RegistrantList mDataNetworkStateRegistrants;
+    private RegistrantList mVoiceNetworkStateRegistrants;
+    private VoiceRadioTechnologyGetter mVoiceRadioTechnologyGetter;
 
     private final Map<String, Variant<?>> mConnManProps = new HashMap<>();
     private final Map<String, Map<String, Variant<?>>> mConnectionsProps = new HashMap<>();
+    private final Map<String, String> mLastInterface = new HashMap<>();
 
-    DatacallModule(RegistrantList dataNetworkStateRegistrants) {
+    DatacallModule(RegistrantList dataNetworkStateRegistrants, RegistrantList voiceNetworkStateRegistrants, VoiceRadioTechnologyGetter voiceRadioTechnologyGetter, INetworkManagementService networkManagementService) {
         mDataNetworkStateRegistrants = dataNetworkStateRegistrants;
+        mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
+        mVoiceRadioTechnologyGetter = voiceRadioTechnologyGetter;
+        mNetworkManagementService = networkManagementService;
 
         mConnMan = RilOfono.sInstance.getOfonoInterface(ConnectionManager.class);
 
@@ -78,7 +95,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             // see e.g. GsmServiceStateTracker for the values and offsets, though some appear unused
             ""+(getProp(mConnManProps, "Attached", Boolean.FALSE) ? OfonoRegistrationState.registered : OfonoRegistrationState.unregistered).ts27007Creg,
             "", "", // unused?
-            ""+getProp(mConnManProps, "Bearer", OfonoNetworkTechnology._unknown).serviceStateInt,
+            ""+getBearerTechnology().serviceStateInt,
         };
     }
 
@@ -89,15 +106,15 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     @Override
-    public Object setupDataCall(String radioTechnologyStr, String profile, String apnStr, String user, String password, String authType, String protocol) {
-        OfonoNetworkTechnology radioTechnology = OfonoNetworkTechnology.fromSetupDataCallValue(Integer.valueOf(radioTechnologyStr));
-        OfonoNetworkTechnology currentRadioTechnology = getProp(mConnManProps, "Bearer", OfonoNetworkTechnology._unknown);
+    public Object setupDataCall(String radioTechnologyIntStr, String profile, String apnStr, String user, String password, String authType, String protocol) {
+        OfonoNetworkTechnology radioTechnology = OfonoNetworkTechnology.fromSetupDataCallValue(Integer.valueOf(radioTechnologyIntStr));
+        OfonoNetworkTechnology currentRadioTechnology = getBearerTechnology();
 
-        Rlog.d(TAG, "setupDataCall "+radioTechnology+"("+radioTechnologyStr+") "+privStr(profile+" "+apnStr+" "+user+" "+password+" "+authType)+" "+protocol);
+        Rlog.d(TAG, "setupDataCall "+radioTechnology+"("+radioTechnologyIntStr+") "+privStr(profile+" "+apnStr+" "+user+" "+password+" "+authType)+" "+protocol);
 
         // let's be stringent for now...
         if (radioTechnology != currentRadioTechnology) {
-            Rlog.e(TAG, "Unable to provide requested radio technology "+radioTechnology+"("+radioTechnologyStr+"); current is "+currentRadioTechnology);
+            Rlog.e(TAG, "Unable to provide requested radio technology "+radioTechnology+"("+radioTechnologyIntStr+"); current is "+currentRadioTechnology);
             throw new CommandException(MODE_NOT_SUPPORTED);
         }
         if (!profile.equals(String.valueOf(RILConstants.DATA_PROFILE_DEFAULT))) {
@@ -135,10 +152,6 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         Map<String, Variant<?>> ipSettings = getProp(props, "Settings", new HashMap<String, Variant<?>>());
         // TODO ipv6?
 
-        if (!getProp(props, "Active", Boolean.FALSE)) {
-            return null;
-        }
-
         DataCallResponse dcr = new DataCallResponse();
         // see RIL#getDataCallResponse for guidance on these values
         dcr.version = 11;
@@ -148,13 +161,17 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         dcr.active = getProp(props, "Active", Boolean.FALSE) ? DATA_CONNECTION_ACTIVE_PH_LINK_UP : DATA_CONNECTION_ACTIVE_PH_LINK_INACTIVE;
         dcr.type = ""; // I don't think anything is using this, and I'm not sure the valid values
 
-        dcr.ifname = getProp(ipSettings, "Interface", "");
-        if (TextUtils.isEmpty(dcr.ifname)) {
-            Rlog.e(TAG, "empty Interface for datacall "+dbusPath+"; skipping");
-            return null;
+        dcr.ifname = getProp(ipSettings, "Interface", (String)null);
+        if (dcr.ifname != null) {
+            mLastInterface.put(dbusPath, dcr.ifname);
         }
-
         dcr.addresses = singleStringToArray(getProp(ipSettings, "Address", ""));
+        if (dcr.addresses.length > 0) {
+            String netmask = getProp(ipSettings, "Netmask", (String)null);
+            if (!TextUtils.isEmpty(netmask)) {
+                dcr.addresses[0] += "/"+getPrefixLength((Inet4Address)NetworkUtils.numericToInetAddress(netmask));
+            }
+        }
         dcr.dnses = getProp(ipSettings, "DomainNameServers", new String[0]);
         dcr.gateways = singleStringToArray(getProp(ipSettings, "Gateway", ""));
         dcr.mtu = PhoneConstants.UNSET_MTU;
@@ -205,6 +222,16 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         if (handle2dPropChange(mConnectionsProps, s.getPath(), ConnectionContext.class, s.name, s.value)) {
             runOnMainThreadDebounced(mFnNotifyDataNetworkState, 200);
         }
+        if (s.name.equals("Settings") || s.name.equals("Active")) {
+            try {
+                Map<String, Variant<?>> connectionProps = mConnectionsProps.get(s.getPath());
+                if (connectionProps != null) { // might have been deleted already in the case of going inactive
+                    onContextIp4SettingsChange(s.getPath(), getDataCallResponse(s.getPath(), connectionProps));
+                }
+            } catch (RemoteException e) {
+                Rlog.e(TAG, "Uncaught RemoteException while setting up/down data context", privExc(e));
+            }
+        }
     }
 
     public void onPropChange(ConnectionManager connMan, String name, Variant<?> value) {
@@ -228,8 +255,22 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     public void handle(ConnectionManager.ContextRemoved s) {
-        forgetAboutUniqueId(s.path.getPath());
-        mConnectionsProps.remove(s.path.getPath());
+        String dbusPath = s.path.getPath();
+
+        // tear down interface
+        try {
+            Map<String, Variant<?>> connectionProps = mConnectionsProps.get(dbusPath);
+            if (connectionProps != null) {
+                DataCallResponse dcr = getDataCallResponse(dbusPath, connectionProps);
+                dcr.active = DATA_CONNECTION_ACTIVE_PH_LINK_INACTIVE;
+                onContextIp4SettingsChange(dbusPath, dcr);
+            }
+        } catch (Throwable e) {
+            Rlog.e(TAG, "handle(" + s.getClass() + ") " + dbusPath + ": Unexpected exception", privExc(e));
+        }
+
+        forgetAboutUniqueId(dbusPath);
+        mConnectionsProps.remove(dbusPath);
         runOnMainThreadDebounced(mFnNotifyDataNetworkState, 200);
     }
 
@@ -237,10 +278,81 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         @Override
         public void run() {
             Object calls = getDataCallListImpl();
-            Rlog.d(TAG, "notify dataNetworkState "+privStr(calls));
             notifyResultAndLog("data netstate", mDataNetworkStateRegistrants, calls, true);
+
+            // This one seems out-of-place, but as far as I can tell it's the way to get
+            // ServiceStateTracker to poll us and discover our data registration state.
+            notifyResultAndLog("voice netstate (because of data netstate)", mVoiceNetworkStateRegistrants, null, false);
         }
     };
+
+    private boolean onContextIp4SettingsChange(String dbusPath, DataCallResponse dcr) throws RemoteException {
+        if (dcr == null) {
+            Rlog.e(TAG, "onContextIpSettingsChange: invalid DataCallResponse");
+            return false;
+        }
+
+        if (dcr.active == DATA_CONNECTION_ACTIVE_PH_LINK_INACTIVE) {
+            // dcr's iface is null at this point, so use the last one we knew about
+            if (mLastInterface.get(dbusPath) != null) {
+                String iface = mLastInterface.get(dbusPath);
+                mNetworkManagementService.setInterfaceDown(iface);
+                mNetworkManagementService.clearInterfaceAddresses(iface);
+            } else {
+                Rlog.e(TAG, "Interface unknown for context "+dbusPath+"; unable to ifdown");
+                return false;
+            }
+        } else if (dcr.active == DATA_CONNECTION_ACTIVE_PH_LINK_UP) {
+            if (dcr.ifname == null) {
+                Rlog.w(TAG, "Got an active connection with no interface; ignoring (might be mid-statechange)");
+                return false;
+            }
+            mNetworkManagementService.clearInterfaceAddresses(dcr.ifname);
+            if (dcr.addresses.length > 1) {
+                // we currently can't get this state from oFono
+                Rlog.e(TAG, "Got a multi-address interface; ignoring");
+                return false;
+            }
+
+            if (dcr.addresses.length == 1) {
+                InterfaceConfiguration ifaceCfg = new InterfaceConfiguration();
+                String[] pieces = dcr.addresses[0].split("/");
+                ifaceCfg.setLinkAddress(new LinkAddress(
+                        NetworkUtils.numericToInetAddress(pieces[0]),
+                        pieces.length == 2 ? Integer.parseInt(pieces[1]) : 32
+                ));
+                ifaceCfg.setInterfaceUp();
+                mNetworkManagementService.setInterfaceConfig(dcr.ifname, ifaceCfg);
+            } else {
+                mNetworkManagementService.setInterfaceUp(dcr.ifname);
+            }
+            if (dcr.mtu != PhoneConstants.UNSET_MTU) {
+                mNetworkManagementService.setMtu(dcr.ifname, dcr.mtu);
+            }
+        } else {
+            Rlog.w(TAG, "Ignoring context with unknown state dcr.active="+ dcr.active);
+            return false;
+        }
+
+        return true;
+    }
+
+    private int getPrefixLength(Inet4Address netmask) {
+        return Integer.bitCount(Memory.peekInt(netmask.getAddress(), 0, ByteOrder.BIG_ENDIAN));
+    }
+
+    /*package*/ interface VoiceRadioTechnologyGetter {
+        OfonoNetworkTechnology getVoiceRadioTechnology();
+    }
+
+    private OfonoNetworkTechnology getBearerTechnology() {
+        // ConnectionManager Bearer property is optional, so fall back on voice radio tech
+        OfonoNetworkTechnology tech = getProp(mConnManProps, "Bearer", OfonoNetworkTechnology._unknown);
+        if (tech == OfonoNetworkTechnology._unknown) {
+            tech = mVoiceRadioTechnologyGetter.getVoiceRadioTechnology();
+        }
+        return tech;
+    }
 
     private final Map<String, Integer> mPathToConnIdMap = new HashMap<>();
     private int mNextConnId = 1;
@@ -295,9 +407,12 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             OfonoAuthMethod authMethod = OfonoAuthMethod.fromRilConstant(authType);
             if (authMethod != null) {
                 ctx.SetProperty("AuthenticationMethod", new Variant<>(authMethod.toString()));
+                ctx.SetProperty("Username", new Variant<>(username));
+                ctx.SetProperty("Password", new Variant<>(password));
+            } else {
+                ctx.SetProperty("Username", new Variant<>(""));
+                ctx.SetProperty("Password", new Variant<>(""));
             }
-            ctx.SetProperty("Username", new Variant<>(username));
-            ctx.SetProperty("Password", new Variant<>(password));
         }
     }
 
@@ -307,8 +422,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             switch(i) {
                 case RILConstants.SETUP_DATA_AUTH_PAP: return pap;
                 case RILConstants.SETUP_DATA_AUTH_CHAP: return chap;
+                case RILConstants.SETUP_DATA_AUTH_NONE: return null;
                 default:
-                    Rlog.e(TAG, "unknown/non-mapping authmethod constant "+i+"; not setting method");
+                    Rlog.e(TAG, "unknown/unsupported authmethod constant "+i+"; not setting method");
                     return null;
             }
         }

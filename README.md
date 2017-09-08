@@ -45,16 +45,13 @@ Nothing is thoroughly tested nor tried on a broad selection of hardware/networks
 	* On my device, oFono seems unable to give Line ID (I think it's a RIL parcel mismatch), so numbers are displayed as "Unknown"
 * User-intiated USSD (special dial codes, such as `#999#` which displays balance on my carrier)
 * Basic data connections
-	* Might be a little flaky; see TODO below
+	* When testing, you might need to turn off wifi to ensure the data connection gets used.
 * Reporting of phone #, ICCID, voicemail # to Android
 
 # Resources and Credit
 * https://github.com/nitdroid/ofono-ril for some help on mapping ofono properties to Android RIL
 
 # Bugs and TODO
-* look at and fix flaky data call setup. It seems the framework doesn't ask us to set up a connection, even if the user toggles the data slider.
-	* Toggling airplane mode, or restarting com.android.phone with the slider on, may help as workarounds.
-	* Also, turning off wifi may be needed to make sure the framework has a reason to enable mobile data
 * make dbus exceptions be checked exceptions, so the compiler will find them and I have to handle them
 * dexopt/proguard? - see notes in Android.mk
 * crashes in airplane mode trying to query properties on probably not-up interfaces
