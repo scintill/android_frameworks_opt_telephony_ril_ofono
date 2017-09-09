@@ -95,7 +95,7 @@ public class RilOfono implements RilMiscInterface {
                     mRilWrapper.mMiscModule = RilOfono.this;
                     mRilWrapper.mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
                     mRilWrapper.mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
-                    mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants);
+                    mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants, mRilWrapper.mIccRefreshRegistrants);
                     mRilWrapper.mVoicecallModule = new VoicecallModule(mRilWrapper.mCallStateRegistrants);
                     mRilWrapper.mDatacallModule = new DatacallModule(
                             mRilWrapper.mDataNetworkStateRegistrants, mRilWrapper.mVoiceNetworkStateRegistrants,

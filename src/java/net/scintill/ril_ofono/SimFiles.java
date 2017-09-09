@@ -20,16 +20,19 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.Message;
 import android.text.TextUtils;
 
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.uicc.AdnRecord;
 import com.android.internal.telephony.uicc.IccConstants;
 import com.android.internal.telephony.uicc.IccIoResult;
+import com.android.internal.telephony.uicc.IccRefreshResponse;
 
 import org.freedesktop.dbus.Variant;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
@@ -40,7 +43,9 @@ import static net.scintill.ril_ofono.PropManager.getProp;
     private static final String TAG = "RilOfono";
 
     private final Map<String, Variant<?>> mMsgWaitingProps;
-    private Map<String, Variant<?>> mSimProps;
+    private final Map<String, Variant<?>> mSimProps;
+
+    private RilOfono.RegistrantList mIccRefreshRegistrants;
 
     private static final int COMMAND_GET_RESPONSE = 0xc0;
     private static final int COMMAND_READ_BINARY = 0xb0;
@@ -52,12 +57,12 @@ import static net.scintill.ril_ofono.PropManager.getProp;
 
     private static final int ADN_FOOTER_SIZE = 14;
 
-    /*package*/ SimFiles(Map<String, Variant<?>> simProps, Map<String, Variant<?>> msgWaitingProps) {
+    /*package*/ SimFiles(Map<String, Variant<?>> simProps, Map<String, Variant<?>> msgWaitingProps, RilOfono.RegistrantList iccRefreshRegistrants) {
         mSimProps = simProps;
         mMsgWaitingProps = msgWaitingProps;
+        mIccRefreshRegistrants = iccRefreshRegistrants;
+        initSimFiles();
     }
-
-    // TODO notify of refreshes of the SIM files based on props changing. mIccRefreshRegistrants take file IDs
 
     public Object iccIOForApp(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2, String aid) {
         // TS 102 221
@@ -85,46 +90,101 @@ import static net.scintill.ril_ofono.PropManager.getProp;
         }
     }
 
+    private Map<String, SimFileGetter> mSimFiles = new HashMap<>();
+    private Map<String, List<Integer>> mMapPropToDependentFileId = new HashMap<>();
+
     private SimFile getSimFile(String path, int fileid) {
-        SimFile file = new SimFile();
-        if (path.equals(IccConstants.MF_SIM) && fileid == IccConstants.EF_ICCID) {
-            String iccid = getProp(mSimProps, "CardIdentifier", (String)null);
-            if (!TextUtils.isEmpty(iccid)) {
+        SimFileGetter sfg = mSimFiles.get(path + IntegralToString.intToHexString(fileid, false, 4));
+        return sfg != null ? sfg.getSimFile() : null;
+    }
+
+    interface SimFileGetter {
+        SimFile getSimFile();
+    }
+
+    private void addSimFile(String path, int fileid, SimFileGetter getter, Object propHolder, String dependentPropName) {
+        mSimFiles.put(path + IntegralToString.intToHexString(fileid, false, 4), getter);
+        String mapkey = propHolder.hashCode() + dependentPropName;
+        if (mMapPropToDependentFileId.get(mapkey) == null) {
+            List<Integer> newList = new ArrayList<>();
+            newList.add(fileid);
+            mMapPropToDependentFileId.put(mapkey, newList);
+        } else {
+            mMapPropToDependentFileId.get(mapkey).add(fileid);
+        }
+    }
+
+    /*package*/ void onPropChange(Object propHolder, String propName) {
+        List<Integer> fileIds = mMapPropToDependentFileId.get(propHolder.hashCode() + propName);
+        if (fileIds != null) {
+            for (int fileId : fileIds) {
+                IccRefreshResponse irr = new IccRefreshResponse();
+                irr.aid = SimModule.SIM_APP_ID;
+                irr.refreshResult = IccRefreshResponse.REFRESH_RESULT_FILE_UPDATE;
+                irr.efId = fileId;
+                RilOfono.notifyResultAndLog("SIM file refresh "+Integer.toHexString(fileId), mIccRefreshRegistrants, irr, false);
+            }
+        }
+    }
+
+    private void initSimFiles() {
+        final String CARD_IDENTIFIER = "CardIdentifier";
+        final String SUBSCRIBER_NUMBERS = "SubscriberNumbers";
+        final String VOICEMAIL_MAILBOX_NUMBER = "VoicemailMailboxNumber";
+
+        addSimFile(IccConstants.MF_SIM, IccConstants.EF_ICCID, new SimFileGetter() {
+            @Override
+            public SimFile getSimFile() {
+                String iccid = getProp(mSimProps, CARD_IDENTIFIER, (String)null);
+                if (TextUtils.isEmpty(iccid)) return null;
+
+                SimFile file = new SimFile();
                 file.mType = TYPE_EF;
                 file.mResponseDataStructure = EF_TYPE_TRANSPARENT;
                 file.mData = Utils.stringToBcd(iccid);
                 return file;
             }
-        } else if (path.equals(IccConstants.MF_SIM + IccConstants.DF_TELECOM)) {
-            if (fileid == IccConstants.EF_MSISDN) {
-                String[] numbers = getProp(mSimProps, "SubscriberNumbers", new String[0]);
-                if (numbers.length > 0) {
-                    file.mType = TYPE_EF;
-                    file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
-                    file.mData = new AdnRecord(null, numbers[0]).buildAdnString(ADN_FOOTER_SIZE);
-                    return file;
-                }
+        }, mSimProps, CARD_IDENTIFIER);
+        addSimFile(IccConstants.MF_SIM + IccConstants.DF_TELECOM, IccConstants.EF_MSISDN, new SimFileGetter() {
+            @Override
+            public SimFile getSimFile() {
+                String[] numbers = getProp(mSimProps, SUBSCRIBER_NUMBERS, new String[0]);
+                if (numbers.length == 0) return null;
+
+                SimFile file = new SimFile();
+                file.mType = TYPE_EF;
+                file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
+                file.mData = new AdnRecord(null, numbers[0]).buildAdnString(ADN_FOOTER_SIZE);
+                return file;
             }
-        } else if (path.equals(IccConstants.MF_SIM + IccConstants.DF_GSM)) {
-            String voicemailNumber = getProp(mMsgWaitingProps, "VoicemailMailboxNumber", "");
-            if (fileid == IccConstants.EF_MBI) {
+        }, mSimProps, SUBSCRIBER_NUMBERS);
+        addSimFile(IccConstants.MF_SIM + IccConstants.DF_GSM, IccConstants.EF_MBI, new SimFileGetter() {
+            @Override
+            public SimFile getSimFile() {
+                String voicemailNumber = getProp(mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER, (String)null);
+                if (TextUtils.isEmpty(voicemailNumber)) return null;
+
                 // TS 151 011
-                if (!TextUtils.isEmpty(voicemailNumber)) {
-                    file.mType = TYPE_EF;
-                    file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
-                    file.mData = new byte[] { 0x01 /*voicemail index below*/, 0x00, 0x00, 0x00 };
-                    return file;
-                }
-            } else if (fileid == IccConstants.EF_MBDN) {
-                if (!TextUtils.isEmpty(voicemailNumber)) {
-                    file.mType = TYPE_EF;
-                    file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
-                    file.mData = new AdnRecord(null, voicemailNumber).buildAdnString(ADN_FOOTER_SIZE);
-                    return file;
-                }
+                SimFile file = new SimFile();
+                file.mType = TYPE_EF;
+                file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
+                file.mData = new byte[] { 0x01 /*voicemail index to the below record (we only have one)*/, 0x00, 0x00, 0x00 };
+                return file;
             }
-        }
-        return null;
+        }, mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER);
+        addSimFile(IccConstants.MF_SIM + IccConstants.DF_GSM, IccConstants.EF_MBDN, new SimFileGetter() {
+            @Override
+            public SimFile getSimFile() {
+                String voicemailNumber = getProp(mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER, (String)null);
+                if (TextUtils.isEmpty(voicemailNumber)) return null;
+
+                SimFile file = new SimFile();
+                file.mType = TYPE_EF;
+                file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
+                file.mData = new AdnRecord(null, voicemailNumber).buildAdnString(ADN_FOOTER_SIZE);
+                return file;
+            }
+        }, mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER);
     }
 
     class SimFile {

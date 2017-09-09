@@ -19,6 +19,8 @@
 
 package net.scintill.ril_ofono;
 
+import android.os.Registrant;
+
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
@@ -45,12 +47,13 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final Map<String, Variant<?>> mMsgWaitingProps = new HashMap<>();
 
     private final Map<String, Variant<?>> mSimProps = new HashMap<>();
-    private final SimFiles mSimFiles = new SimFiles(mSimProps, mMsgWaitingProps);
+    private final SimFiles mSimFiles;
 
-    private static final String SIM_APP_ID = "00";
+    /*package*/ static final String SIM_APP_ID = "00";
 
-    /*package*/ SimModule(RegistrantList iccStatusChangedRegistrants) {
+    /*package*/ SimModule(RegistrantList iccStatusChangedRegistrants, RegistrantList iccRefreshRegistrants) {
         mIccStatusChangedRegistrants = iccStatusChangedRegistrants;
+        mSimFiles = new SimFiles(mSimProps, mMsgWaitingProps, iccRefreshRegistrants);
 
         SimManager sim = RilOfono.sInstance.getOfonoInterface(SimManager.class);
         MessageWaiting msgWaiting = RilOfono.sInstance.getOfonoInterface(MessageWaiting.class);
@@ -128,10 +131,11 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     protected void onPropChange(SimManager simManager, String name, Variant<?> value) {
         // TODO check if something that we report actually changed?
         runOnMainThreadDebounced(mFnNotifySimChanged, 350);
+        mSimFiles.onPropChange(mSimProps, name);
     }
 
     protected void onPropChange(MessageWaiting messageWaiting, String name, Variant<?> value) {
-        // no action needed other than mirroring props
+        mSimFiles.onPropChange(mMsgWaitingProps, name);
     }
 
     private DebouncedRunnable mFnNotifySimChanged = new DebouncedRunnable() {

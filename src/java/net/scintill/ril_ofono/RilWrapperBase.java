@@ -82,13 +82,10 @@ public abstract class RilWrapperBase extends BaseCommands {
     /*package*/ RilOfono.RegistrantList mUSSDRegistrants = new DynamicRegistrantListFromField("mUSSDRegistrant");
     /*package*/ RilOfono.RegistrantList mSignalStrengthRegistrants = new DynamicRegistrantListFromField("mSignalStrengthRegistrant");
 
-    ///////////////////////////
-    // Promote some members to package visibility
-    ///////////////////////////
-
     /*package*/ RilOfono.RegistrantList
             mVoiceNetworkStateRegistrants = new RegistrantListAndroidTypeWrapper(super.mVoiceNetworkStateRegistrants),
             mIccStatusChangedRegistrants = new RegistrantListAndroidTypeWrapper(super.mIccStatusChangedRegistrants),
+            mIccRefreshRegistrants = new RegistrantListAndroidTypeWrapper(super.mIccRefreshRegistrants),
             mVoiceRadioTechChangedRegistrants = new RegistrantListAndroidTypeWrapper(super.mVoiceRadioTechChangedRegistrants),
             mCallStateRegistrants = new RegistrantListAndroidTypeWrapper(super.mCallStateRegistrants),
             mDataNetworkStateRegistrants = new RegistrantListAndroidTypeWrapper(super.mDataNetworkStateRegistrants),
