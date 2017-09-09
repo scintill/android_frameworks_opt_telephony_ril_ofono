@@ -90,32 +90,34 @@ import static net.scintill.ril_ofono.PropManager.getProp;
         }
     }
 
-    private Map<String, SimFileGetter> mSimFiles = new HashMap<>();
+    private Map<String, SimFileFunction> mSimFiles = new HashMap<>();
     private Map<String, List<Integer>> mMapPropToDependentFileId = new HashMap<>();
 
     private SimFile getSimFile(String path, int fileid) {
-        SimFileGetter sfg = mSimFiles.get(path + IntegralToString.intToHexString(fileid, false, 4));
+        SimFileFunction sfg = mSimFiles.get(path + IntegralToString.intToHexString(fileid, false, 4));
         return sfg != null ? sfg.getSimFile() : null;
     }
 
-    interface SimFileGetter {
+    interface SimFileFunction {
         SimFile getSimFile();
     }
 
-    private void addSimFile(String path, int fileid, SimFileGetter getter, Object propHolder, String dependentPropName) {
-        mSimFiles.put(path + IntegralToString.intToHexString(fileid, false, 4), getter);
-        String mapkey = propHolder.hashCode() + dependentPropName;
-        if (mMapPropToDependentFileId.get(mapkey) == null) {
-            List<Integer> newList = new ArrayList<>();
-            newList.add(fileid);
-            mMapPropToDependentFileId.put(mapkey, newList);
-        } else {
-            mMapPropToDependentFileId.get(mapkey).add(fileid);
+    private void addSimFile(String path, int fileid, SimFileFunction fileFunction, String... dependentPropNames) {
+        mSimFiles.put(path + IntegralToString.intToHexString(fileid, false, 4), fileFunction);
+        for (String dependentPropName : dependentPropNames) {
+            String mapkey = dependentPropName;
+            if (mMapPropToDependentFileId.get(mapkey) == null) {
+                List<Integer> newList = new ArrayList<>();
+                newList.add(fileid);
+                mMapPropToDependentFileId.put(mapkey, newList);
+            } else {
+                mMapPropToDependentFileId.get(mapkey).add(fileid);
+            }
         }
     }
 
-    /*package*/ void onPropChange(Object propHolder, String propName) {
-        List<Integer> fileIds = mMapPropToDependentFileId.get(propHolder.hashCode() + propName);
+    /*package*/ void notifyPropChangeForPotentialFileRefresh(String propName) {
+        List<Integer> fileIds = mMapPropToDependentFileId.get(propName);
         if (fileIds != null) {
             for (int fileId : fileIds) {
                 IccRefreshResponse irr = new IccRefreshResponse();
@@ -131,8 +133,10 @@ import static net.scintill.ril_ofono.PropManager.getProp;
         final String CARD_IDENTIFIER = "CardIdentifier";
         final String SUBSCRIBER_NUMBERS = "SubscriberNumbers";
         final String VOICEMAIL_MAILBOX_NUMBER = "VoicemailMailboxNumber";
+        final String VOICEMAIL_WAITING = "VoicemailWaiting";
+        final String VOICEMAIL_MESSAGE_COUNT = "VoicemailMessageCount";
 
-        addSimFile(IccConstants.MF_SIM, IccConstants.EF_ICCID, new SimFileGetter() {
+        addSimFile(IccConstants.MF_SIM, IccConstants.EF_ICCID, new SimFileFunction() {
             @Override
             public SimFile getSimFile() {
                 String iccid = getProp(mSimProps, CARD_IDENTIFIER, (String)null);
@@ -144,8 +148,9 @@ import static net.scintill.ril_ofono.PropManager.getProp;
                 file.mData = Utils.stringToBcd(iccid);
                 return file;
             }
-        }, mSimProps, CARD_IDENTIFIER);
-        addSimFile(IccConstants.MF_SIM + IccConstants.DF_TELECOM, IccConstants.EF_MSISDN, new SimFileGetter() {
+        }, CARD_IDENTIFIER);
+
+        addSimFile(IccConstants.MF_SIM + IccConstants.DF_TELECOM, IccConstants.EF_MSISDN, new SimFileFunction() {
             @Override
             public SimFile getSimFile() {
                 String[] numbers = getProp(mSimProps, SUBSCRIBER_NUMBERS, new String[0]);
@@ -157,8 +162,9 @@ import static net.scintill.ril_ofono.PropManager.getProp;
                 file.mData = new AdnRecord(null, numbers[0]).buildAdnString(ADN_FOOTER_SIZE);
                 return file;
             }
-        }, mSimProps, SUBSCRIBER_NUMBERS);
-        addSimFile(IccConstants.MF_SIM + IccConstants.DF_GSM, IccConstants.EF_MBI, new SimFileGetter() {
+        }, SUBSCRIBER_NUMBERS);
+
+        addSimFile(IccConstants.MF_SIM + IccConstants.DF_GSM, IccConstants.EF_MBI, new SimFileFunction() {
             @Override
             public SimFile getSimFile() {
                 String voicemailNumber = getProp(mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER, (String)null);
@@ -171,8 +177,9 @@ import static net.scintill.ril_ofono.PropManager.getProp;
                 file.mData = new byte[] { 0x01 /*voicemail index to the below record (we only have one)*/, 0x00, 0x00, 0x00 };
                 return file;
             }
-        }, mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER);
-        addSimFile(IccConstants.MF_SIM + IccConstants.DF_GSM, IccConstants.EF_MBDN, new SimFileGetter() {
+        }, VOICEMAIL_MAILBOX_NUMBER);
+
+        addSimFile(IccConstants.MF_SIM + IccConstants.DF_GSM, IccConstants.EF_MBDN, new SimFileFunction() {
             @Override
             public SimFile getSimFile() {
                 String voicemailNumber = getProp(mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER, (String)null);
@@ -184,7 +191,21 @@ import static net.scintill.ril_ofono.PropManager.getProp;
                 file.mData = new AdnRecord(null, voicemailNumber).buildAdnString(ADN_FOOTER_SIZE);
                 return file;
             }
-        }, mMsgWaitingProps, VOICEMAIL_MAILBOX_NUMBER);
+        }, VOICEMAIL_MAILBOX_NUMBER);
+
+        addSimFile(IccConstants.MF_SIM + IccConstants.DF_GSM, IccConstants.EF_MWIS, new SimFileFunction() {
+            @Override
+            public SimFile getSimFile() {
+                boolean waiting = getProp(mMsgWaitingProps, VOICEMAIL_WAITING, Boolean.FALSE);
+                int count = getProp(mMsgWaitingProps, VOICEMAIL_MESSAGE_COUNT, (Number)0).byteValue() & 0xff;
+
+                SimFile file = new SimFile();
+                file.mType = TYPE_EF;
+                file.mResponseDataStructure = EF_TYPE_LINEAR_FIXED;
+                file.mData = new byte[] { (byte)(waiting ? 1 : 0), (byte)count };
+                return file;
+            }
+        }, VOICEMAIL_WAITING, VOICEMAIL_MESSAGE_COUNT);
     }
 
     class SimFile {

@@ -19,8 +19,6 @@
 
 package net.scintill.ril_ofono;
 
-import android.os.Registrant;
-
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
@@ -44,22 +42,24 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     private RegistrantList mIccStatusChangedRegistrants;
 
-    private final Map<String, Variant<?>> mMsgWaitingProps = new HashMap<>();
-
     private final Map<String, Variant<?>> mSimProps = new HashMap<>();
     private final SimFiles mSimFiles;
+
+    private boolean mSimShownToUsersOnce = false;
 
     /*package*/ static final String SIM_APP_ID = "00";
 
     /*package*/ SimModule(RegistrantList iccStatusChangedRegistrants, RegistrantList iccRefreshRegistrants) {
+        Map<String, Variant<?>> msgWaitingProps = new HashMap<>();
+
         mIccStatusChangedRegistrants = iccStatusChangedRegistrants;
-        mSimFiles = new SimFiles(mSimProps, mMsgWaitingProps, iccRefreshRegistrants);
+        mSimFiles = new SimFiles(mSimProps, msgWaitingProps, iccRefreshRegistrants);
 
         SimManager sim = RilOfono.sInstance.getOfonoInterface(SimManager.class);
         MessageWaiting msgWaiting = RilOfono.sInstance.getOfonoInterface(MessageWaiting.class);
 
         mirrorProps(SimManager.class, sim, SimManager.PropertyChanged.class, mSimProps);
-        mirrorProps(MessageWaiting.class, msgWaiting, MessageWaiting.PropertyChanged.class, mMsgWaitingProps);
+        mirrorProps(MessageWaiting.class, msgWaiting, MessageWaiting.PropertyChanged.class, msgWaitingProps);
     }
 
     @Override
@@ -118,6 +118,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         if (cardStatus.mCardState == CardState.CARDSTATE_PRESENT) {
             cardStatus.mGsmUmtsSubscriptionAppIndex = 0;
             cardStatus.mApplications = new IccCardApplicationStatus[] { gsmAppStatus };
+            mSimShownToUsersOnce = true;
         } else {
             cardStatus.mGsmUmtsSubscriptionAppIndex = -1;
             cardStatus.mApplications = new IccCardApplicationStatus[0];
@@ -129,13 +130,20 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     }
 
     protected void onPropChange(SimManager simManager, String name, Variant<?> value) {
-        // TODO check if something that we report actually changed?
-        runOnMainThreadDebounced(mFnNotifySimChanged, 350);
-        mSimFiles.onPropChange(mSimProps, name);
+        if (name.equals("Present")) {
+            runOnMainThreadDebounced(mFnNotifySimChanged, 350);
+        }
+
+        // don't bother with file refreshes if we haven't shown anything to callers (that is, we're still initializing)
+        if (mSimShownToUsersOnce) {
+            mSimFiles.notifyPropChangeForPotentialFileRefresh(name);
+        }
     }
 
     protected void onPropChange(MessageWaiting messageWaiting, String name, Variant<?> value) {
-        mSimFiles.onPropChange(mMsgWaitingProps, name);
+        if (mSimShownToUsersOnce) {
+            mSimFiles.notifyPropChangeForPotentialFileRefresh(name);
+        }
     }
 
     private DebouncedRunnable mFnNotifySimChanged = new DebouncedRunnable() {
