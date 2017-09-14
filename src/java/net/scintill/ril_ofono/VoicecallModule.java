@@ -109,7 +109,14 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             } else {
                 call.namePresentation = PRESENTATION_ALLOWED;
             }
-            // TODO check if + is shown in number
+
+            // Fix up this state that confuses Android - DIALING is only for outgoing.
+            // It might be a bug in the oFono QMI voicecall driver, as there is a comment about
+            // whether it's right to map CALL_STATE_SETUP to dialing.
+            if (call.state == DriverCall.State.DIALING && call.isMT) {
+                call.state = DriverCall.State.INCOMING;
+            }
+
             calls.add(call);
         }
         Collections.sort(calls); // not sure why, but original RIL does
