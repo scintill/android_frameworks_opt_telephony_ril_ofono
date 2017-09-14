@@ -1,0 +1,24 @@
+# entry point
+-keep class net.scintill.ril_ofono.RilWrapper {
+	<init>(...);
+}
+
+# used by reflection
+-keep class net.scintill.ril_ofono.** {
+	void handle(org.ofono.**);
+	void onPropChange(org.ofono.**, java.lang.String, org.freedesktop.dbus.Variant);
+}
+
+-keep class org.ofono.** {
+	java.util.Map GetProperties();
+}
+
+# used by reflection in dbus lib (DBusSignal; oFono classes)
+-keep class * extends org.freedesktop.dbus.DBusSignal {
+	<init>(...);
+}
+-keep class org.ofono.** {
+	<init>(...);
+}
+
+-verbose

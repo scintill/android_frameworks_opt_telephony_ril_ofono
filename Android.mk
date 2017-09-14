@@ -63,7 +63,5 @@ include $(CLEAR_VARS)
 
 	LOCAL_JAVACFLAGS := -Xlint
 
-	# TODO not sure what we *should* do with these, but for now it seems easier to get going by turning them off...
-	LOCAL_DEX_PREOPT := false
-	LOCAL_PROGUARD_ENABLED := disabled
+	LOCAL_PROGUARD_FLAG_FILES = proguard.flags
 include $(BUILD_PACKAGE)
