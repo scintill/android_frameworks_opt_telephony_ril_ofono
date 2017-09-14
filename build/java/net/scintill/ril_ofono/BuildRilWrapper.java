@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-public class BuildRilWrapper {
+/*package*/ class BuildRilWrapper {
 
     public static void main(String[] args) {
         try {

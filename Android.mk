@@ -28,20 +28,8 @@ include $(BUILD_STATIC_JAVA_LIBRARY)
 # Build our Java RIL (as a lib, because we need the RilWrapper to complete building, but building the RilWrapper needs the rest)
 include $(CLEAR_VARS)
 	LOCAL_MODULE := RilOfono.lib
-	LOCAL_SRC_FILES := $(call all-java-files-under,src/java)
+	LOCAL_SRC_FILES := $(call all-java-files-under,src/java) $(call all-java-files-under,build/java)
 	LOCAL_STATIC_JAVA_LIBRARIES := RilOfono.3rdparty
-	LOCAL_JAVA_LIBRARIES := telephony-common
-
-	LOCAL_JAVACFLAGS := -Xlint
-include $(BUILD_STATIC_JAVA_LIBRARY)
-
-# Build the wrapper build tool
-# XXX Building to target (not host) because it seems easier that way.
-# As a static library, I think it will not actually end up on the target.
-include $(CLEAR_VARS)
-	LOCAL_MODULE := RilOfono.buildtool
-	LOCAL_SRC_FILES := $(call all-java-files-under,build/java)
-	LOCAL_STATIC_JAVA_LIBRARIES := RilOfono.lib
 	LOCAL_JAVA_LIBRARIES := telephony-common
 
 	LOCAL_JAVACFLAGS := -Xlint
@@ -50,7 +38,7 @@ include $(BUILD_STATIC_JAVA_LIBRARY)
 # Define RilWrapper build process
 RILOFONO_WRAPPER_JAVA := $(call generated-sources-dir-for,APPS,RilOfono)/RilWrapper.java
 $(RILOFONO_WRAPPER_JAVA): PRIVATE_CUSTOM_TOOL = java -cp $(call normalize-path-list,$^) net.scintill.ril_ofono.BuildRilWrapper > "$@"
-$(RILOFONO_WRAPPER_JAVA): $(foreach lib,RilOfono.buildtool framework telephony-common,$(call intermediates-dir-for,JAVA_LIBRARIES,$(lib),,COMMON)/classes.jar)
+$(RILOFONO_WRAPPER_JAVA): $(foreach lib,RilOfono.lib framework telephony-common,$(call intermediates-dir-for,JAVA_LIBRARIES,$(lib),,COMMON)/classes.jar)
 	$(transform-generated-source)
 
 # Build RIL package
