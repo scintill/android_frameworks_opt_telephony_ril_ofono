@@ -48,26 +48,6 @@ public abstract class Utils {
         }
     }
 
-    /*package*/ static DriverCall.State parseOfonoCallState(String s) {
-        switch(s) {
-            case "active":
-                return DriverCall.State.ACTIVE;
-            case "held":
-                return DriverCall.State.HOLDING;
-            case "dialing":
-                return DriverCall.State.DIALING;
-            case "alerting":
-                return DriverCall.State.ALERTING;
-            case "incoming":
-                return DriverCall.State.INCOMING;
-            case "waiting":
-                return DriverCall.State.WAITING;
-            default:
-                Rlog.e(TAG, "Unknown/unusable state for call: "+s+"; ignoring");
-                return null;
-        }
-    }
-
     // opposite of IccUtils#bcdToString
     /*package*/ static byte[] stringToBcd(String str) {
         byte[] ret = new byte[(str.length() / 2) + 1];

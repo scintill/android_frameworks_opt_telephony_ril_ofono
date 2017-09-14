@@ -77,11 +77,16 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         //Rlog.d(TAG, "mCallsProps= "+privStr(mCallsProps));
         for (Map<String, Variant<?>> callProps : mCallsProps.values()) {
             DriverCall call = new DriverCall();
-            call.state = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
-            call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
-            if (call.state == null || call.index == -1) {
-                Rlog.e(TAG, "Skipping unknown call: "+privStr(callProps));
-                continue; // <--- skip unknown call
+
+            try {
+                call.state = getProp(callProps, "State", OfonoCallState.class).dcState;
+                call.index = getProp(callProps, PROPNAME_CALL_INDEX, -1);
+                if (call.index == -1) {
+                    throw new IllegalArgumentException("index not set");
+                }
+            } catch (IllegalArgumentException e) {
+                Rlog.e(TAG, "Skipping unknown call: "+privStr(callProps), privExc(e));
+                continue; // <---
             }
 
             call.isMpty = false;
@@ -215,20 +220,18 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             String callPath = callPropsEntry.getKey();
             Map<String, Variant<?>> callProps = callPropsEntry.getValue();
             try {
-                DriverCall.State callState = Utils.parseOfonoCallState(getProp(callProps, "State", ""));
+                OfonoCallState callState = getProp(callProps, "State", OfonoCallState.class);
                 // TODO which states should be hungup? should we only hang up one?
-                if (callState != null) {
-                    switch (callState) {
-                        case INCOMING:
-                        case HOLDING:
-                        case WAITING:
-                            VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
-                            call.Hangup();
-                            oneSucceeded = true;
-                            break;
-                        default:
-                            // skip
-                    }
+                switch (callState) {
+                    case incoming:
+                    case held:
+                    case waiting:
+                        VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
+                        call.Hangup();
+                        oneSucceeded = true;
+                        break;
+                    default:
+                        // skip
                 }
             } catch (Throwable t) {
                 oneExcepted = true;
@@ -250,7 +253,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         for (Map.Entry<String, Map<String, Variant<?>>> callPropsEntry : mCallsProps.entrySet()) {
             String callPath = callPropsEntry.getKey();
             Map<String, Variant<?>> callProps = callPropsEntry.getValue();
-            if (Utils.parseOfonoCallState(getProp(callProps, "State", "")) == DriverCall.State.INCOMING) {
+            if (getProp(callProps, "State", OfonoCallState.class) == OfonoCallState.incoming) {
                 VoiceCall call = RilOfono.sInstance.getOfonoInterface(VoiceCall.class, callPath);
                 call.Answer();
                 return null;
@@ -293,5 +296,16 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             notifyResultAndLog("call state", mCallStateRegistrants, null, false);
         }
     };
+
+    enum OfonoCallState {
+        active(DriverCall.State.ACTIVE), held(DriverCall.State.HOLDING),
+        dialing(DriverCall.State.DIALING), alerting(DriverCall.State.ALERTING),
+        incoming(DriverCall.State.INCOMING), waiting(DriverCall.State.WAITING),
+        ;
+        public DriverCall.State dcState;
+        OfonoCallState(DriverCall.State dcState) {
+            this.dcState = dcState;
+        }
+    }
 
 }

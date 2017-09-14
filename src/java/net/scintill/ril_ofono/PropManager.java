@@ -169,8 +169,13 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         return props.get(key) != null ? props.get(key).getValue().toString() : defaultValue;
     }
 
-    /*package*/ static <T extends Enum<T>> T getProp(Map<String, Variant<?>> props, String key, T defaultValue) {
+    /*package*/ static <T extends Enum<T>> T getProp(Map<String, Variant<?>> props, String key, @NonNull T defaultValue) {
         return Enum.valueOf(defaultValue.getDeclaringClass(), getProp(props, key, defaultValue.toString()));
+    }
+
+    /** @throws IllegalArgumentException if value not set, or unmapped enum value */
+    /*package*/ static <T extends Enum<T>> T getProp(Map<String, Variant<?>> props, String key, Class<T> valueClass) {
+        return Enum.valueOf(valueClass, getProp(props, key, "")); // empty string should cause IllegalArgument from Enum.valueOf
     }
 
 }
