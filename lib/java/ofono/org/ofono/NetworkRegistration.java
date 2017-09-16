@@ -21,7 +21,7 @@ public interface NetworkRegistration extends DBusInterface
 
   public Map<String,Variant> GetProperties();
   public void Register();
-  public List<Struct3> GetOperators();
-  public List<Struct4> Scan();
+  public List<PathAndProperties> GetOperators();
+  public List<PathAndProperties> Scan();
 
 }

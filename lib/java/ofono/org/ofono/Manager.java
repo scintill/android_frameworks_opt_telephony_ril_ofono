@@ -28,6 +28,6 @@ public interface Manager extends DBusInterface
       }
    }
 
-  public List<Struct1> GetModems();
+  public List<PathAndProperties> GetModems();
 
 }

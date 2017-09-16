@@ -77,6 +77,6 @@ public interface MessageManager extends DBusInterface
   public void SetProperty(String property, Variant value);
   public Path SendMessage(String to, String text);
   public Path SendPdu(byte[] smsc, byte[] pdu);
-  public List<Struct2> GetMessages();
+  public List<PathAndProperties> GetMessages();
 
 }

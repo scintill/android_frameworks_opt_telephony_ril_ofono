@@ -44,7 +44,7 @@ import org.freedesktop.dbus.DBusSignal;
 import org.freedesktop.dbus.exceptions.DBusException;
 import org.ofono.Manager;
 import org.ofono.Modem;
-import org.ofono.Struct1;
+import org.ofono.PathAndProperties;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -122,9 +122,9 @@ public class RilOfono implements RilMiscInterface {
         synchronized (mModemPresenceMonitor) { // for when state is changing rapidly (e.g. oFono dies and restarts) - process one at a time
             try {
                 Manager manager = getOfonoInterface(Manager.class, "/");
-                List<Struct1> modems = getPoweredModems(manager);
+                List<PathAndProperties> modems = getPoweredModems(manager);
                 if (modems.size() > 0 && !mRilWrapper.mOfonoIsUp) {
-                    onModemUp(modems.get(0).a.getPath());
+                    onModemUp(modems.get(0).path.getPath());
                 } else if (modems.size() == 0 && mRilWrapper.mOfonoIsUp) {
                     onModemDown();
                 }
@@ -217,11 +217,11 @@ public class RilOfono implements RilMiscInterface {
         }
     }
 
-    private List<Struct1> getPoweredModems(Manager manager) {
-        List<Struct1> l = new ArrayList<>();
-        for (Struct1 struct1 : manager.GetModems()) {
-            if (struct1.b.get("Powered").getValue() == Boolean.TRUE) {
-                l.add(struct1);
+    private List<PathAndProperties> getPoweredModems(Manager manager) {
+        List<PathAndProperties> l = new ArrayList<>();
+        for (PathAndProperties pathAndProperties : manager.GetModems()) {
+            if (pathAndProperties.props.get("Powered").getValue() == Boolean.TRUE) {
+                l.add(pathAndProperties);
             }
         }
         return l;

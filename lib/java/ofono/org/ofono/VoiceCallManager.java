@@ -70,6 +70,6 @@ public interface VoiceCallManager extends DBusInterface
   public List<DBusInterface> CreateMultiparty();
   public void HangupMultiparty();
   public void SendTones(String SendTones);
-  public List<Struct1> GetCalls();
+  public List<PathAndProperties> GetCalls();
 
 }
