@@ -20,6 +20,9 @@
 -keepclassmembers class org.ofono.** {
 	<init>(...);
 }
+-keep class ** extends org.freedesktop.dbus.exceptions.DBusExecutionException {
+	<init>(...);
+}
 
 -verbose
 #-printseeds

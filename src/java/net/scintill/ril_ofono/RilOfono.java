@@ -26,7 +26,6 @@ import android.os.HandlerThread;
 import android.os.INetworkManagementService;
 import android.os.Message;
 import android.os.ServiceManager;
-import android.os.StrictMode;
 import android.telephony.Rlog;
 import android.text.TextUtils;
 
@@ -37,11 +36,15 @@ import com.android.internal.telephony.gsm.SmsBroadcastConfigInfo;
 import com.android.internal.telephony.uicc.IccIoResult;
 import com.android.internal.telephony.uicc.IccUtils;
 
+import org.freedesktop.DBus;
 import org.freedesktop.dbus.DBusConnection;
 import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSigHandler;
 import org.freedesktop.dbus.DBusSignal;
 import org.freedesktop.dbus.exceptions.DBusException;
+import org.ofono.Manager;
+import org.ofono.Modem;
+import org.ofono.Struct1;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -49,8 +52,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
@@ -70,6 +75,8 @@ public class RilOfono implements RilMiscInterface {
 
     private DBusConnection mDbus;
 
+    private String mModemPath;
+
     /*package*/ static RilOfono sInstance;
 
     /*package*/ RilOfono(final RilWrapperBase rilWrapper) {
@@ -83,26 +90,12 @@ public class RilOfono implements RilMiscInterface {
         mMainHandler = new Handler(new EmptyHandlerCallback());
         mDbusHandler = new Handler(dbusThread.getLooper(), new EmptyHandlerCallback());
 
-        // We can't really return until the objects below are created
-        // (otherwise calls start coming in while we have null pointers), and the objects need dbus,
-        // so this is one time we'll allow network on main.
-        runWithNetworkPermittedOnMainThread(new Runnable() {
+        runOnDbusThread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
-
-                    mRilWrapper.mMiscModule = RilOfono.this;
-                    mRilWrapper.mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
-                    mRilWrapper.mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
-                    mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants, mRilWrapper.mIccRefreshRegistrants);
-                    mRilWrapper.mVoicecallModule = new VoicecallModule(mRilWrapper.mCallStateRegistrants);
-                    mRilWrapper.mDatacallModule = new DatacallModule(
-                            mRilWrapper.mDataNetworkStateRegistrants, mRilWrapper.mVoiceNetworkStateRegistrants,
-                            ((ModemModule)mRilWrapper.mModemModule).mVoiceRadioTechnologyGetter,
-                            INetworkManagementService.Stub.asInterface(ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE)));
-                    mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
-                    ((ModemModule)mRilWrapper.mModemModule).onModemChange(false); // initialize starting state
+                    reinitDbus();
+                    checkModemPresence();
                 } catch (Throwable t) {
                     throw new RuntimeException("exception while loading", t);
                 }
@@ -113,17 +106,66 @@ public class RilOfono implements RilMiscInterface {
         //mMainHandler.postDelayed(new Tests(mSmsModule), 10000);
     }
 
-    /*package*/ void onModemAvail() {
-        // RIL.java for RIL_UNSOL_RIL_CONNECTED does this
-        try {
-            mRilWrapper.mModemModule.setRadioPower(false);
-        } catch (Throwable t) {
-            setRadioState(RadioState.RADIO_UNAVAILABLE);
-            Rlog.e(TAG, "onModemAvail: setRadioPower(false) threw an exception", t);
-            return;
+    private void reinitDbus() throws DBusException {
+        if (mDbus != null) {
+            mDbus.disconnect();
+            mDbus = null;
         }
+        mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
+        registerDbusSignal(Manager.ModemAdded.class, RilOfono.this);
+        registerDbusSignal(Manager.ModemRemoved.class, RilOfono.this);
+        registerDbusSignal(Modem.PropertyChanged.class, RilOfono.this);
+    }
 
-        setRadioState(RadioState.RADIO_OFF);
+    private final Object mModemPresenceMonitor = new Object();
+    /*package*/ void checkModemPresence() {
+        synchronized (mModemPresenceMonitor) { // for when state is changing rapidly (e.g. oFono dies and restarts) - process one at a time
+            try {
+                Manager manager = getOfonoInterface(Manager.class, "/");
+                List<Struct1> modems = getPoweredModems(manager);
+                if (modems.size() > 0 && !mRilWrapper.mOfonoIsUp) {
+                    onModemUp(modems.get(0).a.getPath());
+                } else if (modems.size() == 0 && mRilWrapper.mOfonoIsUp) {
+                    onModemDown();
+                }
+            } catch (DBus.Error.ServiceUnknown e) {
+                Rlog.w(TAG, "checkModemPresence: oFono Manager not found: "+privStr(e.getMessage()));
+            } catch (DBus.Error.NoReply e) {
+                // this state can be seen if ofonod is killed. it sets Powered=false on modem, triggering this code, then goes off the bus
+                Rlog.w(TAG, "checkModemPresence: oFono did not reply: "+privStr(e.getMessage()));
+            }
+        }
+    }
+
+    private void onModemUp(String path) {
+        Rlog.v(TAG, "modem up "+path);
+        mModemPath = path;
+
+        // Suppress radio state notifications, because otherwise the ModemModule reports radio is
+        // down as it's loading, the ServiceStateTracker immediately tries to power the radio,
+        // fails because mOfonoIsUp is still false, and never tries again.
+        startSuppressingRadioStateNotifications();
+
+        mRilWrapper.mMiscModule = RilOfono.this;
+        mRilWrapper.mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
+        mRilWrapper.mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
+        mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants, mRilWrapper.mIccRefreshRegistrants);
+        mRilWrapper.mVoicecallModule = new VoicecallModule(mRilWrapper.mCallStateRegistrants);
+        mRilWrapper.mDatacallModule = new DatacallModule(
+                mRilWrapper.mDataNetworkStateRegistrants, mRilWrapper.mVoiceNetworkStateRegistrants,
+                ((ModemModule) mRilWrapper.mModemModule).mVoiceRadioTechnologyGetter,
+                INetworkManagementService.Stub.asInterface(ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE))
+        );
+        mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
+
+        mRilWrapper.mOfonoIsUp = true;
+
+        try {
+            mRilWrapper.mModemModule.setRadioPower(false); // RIL.java for RIL_UNSOL_RIL_CONNECTED does this
+            stopSuppressingRadioStateNotifications(RadioState.RADIO_OFF);
+        } catch (Throwable t) {
+            Rlog.e(TAG, "onModemAvail: setRadioPower(false) threw an exception", t);
+        }
 
         // TODO What does this mean to consumers? I picked 9 because it's less than 10, which is
         // apparently when the icc*() methods we won't support were added.
@@ -131,6 +173,58 @@ public class RilOfono implements RilMiscInterface {
         mRilWrapper.updateRilConnection(RIL_VERSION);
 
         // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
+    }
+
+    private void onModemDown() {
+        Rlog.v(TAG, "modem down");
+        mModemPath = null;
+
+        try {
+            reinitDbus(); // somewhat lazy way to clear signal handlers the modules installed
+        } catch (DBusException e) {
+            Rlog.e(TAG, "onModemDown: exception from reinitDbus", privExc(e));
+        }
+
+        mRilWrapper.mOfonoIsUp = false;
+
+        mRilWrapper.mMiscModule = null;
+        mRilWrapper.mModemModule = null;
+        mRilWrapper.mSmsModule = null;
+        mRilWrapper.mSimModule = null;
+        mRilWrapper.mVoicecallModule = null;
+        mRilWrapper.mDatacallModule = null;
+        mRilWrapper.mSupplementaryServicesModule = null;
+
+        setRadioState(RadioState.RADIO_UNAVAILABLE);
+
+        mRilWrapper.updateRilConnection(-1);
+    }
+
+    public void handle(Manager.ModemAdded s) {
+        Rlog.v(TAG, "ModemAdded");
+        checkModemPresence();
+    }
+
+    public void handle(Manager.ModemRemoved s) {
+        Rlog.v(TAG, "ModemRemoved");
+        checkModemPresence();
+    }
+
+    public void handle(Modem.PropertyChanged s) {
+        if (s.name.equals("Powered")) {
+            Rlog.v(TAG, "ModemPropertyChanged Powered");
+            checkModemPresence();
+        }
+    }
+
+    private List<Struct1> getPoweredModems(Manager manager) {
+        List<Struct1> l = new ArrayList<>();
+        for (Struct1 struct1 : manager.GetModems()) {
+            if (struct1.b.get("Powered").getValue() == Boolean.TRUE) {
+                l.add(struct1);
+            }
+        }
+        return l;
     }
 
     @Override
@@ -733,8 +827,33 @@ public class RilOfono implements RilMiscInterface {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
+    private boolean mSuppressRadioStateNotifications = false;
+    private RadioState mRadioStateAtSuppressionTime;
+    private void startSuppressingRadioStateNotifications() {
+        synchronized (mRilWrapper.mStateMonitor) {
+            mRadioStateAtSuppressionTime = mRilWrapper.getRadioState();
+            mSuppressRadioStateNotifications = true;
+        }
+    }
+
+    private void stopSuppressingRadioStateNotifications(RadioState newState) {
+        Rlog.v(TAG, "Stopping suppressing radiostate notifications and go to state "+newState);
+        synchronized (mRilWrapper.mStateMonitor) {
+            // This is a little dirty, but we toggle states to trigger BaseCommands's notifications.
+            // We take the monitor so nobody else can observe or interrupt the fake state transition.
+            if (newState != mRadioStateAtSuppressionTime) {
+                mRilWrapper.setRadioState(mRadioStateAtSuppressionTime, true);
+                mRilWrapper.setRadioState(newState, false);
+            }
+            mSuppressRadioStateNotifications = false;
+        }
+    }
+
     /*package*/ void setRadioState(RadioState newState) {
-        mRilWrapper.setRadioStateHelper(newState);
+        Rlog.v(TAG, "Setting radio state "+newState+(mSuppressRadioStateNotifications ? " (suppress)" : ""));
+        synchronized (mRilWrapper.mStateMonitor) {
+            mRilWrapper.setRadioState(newState, mSuppressRadioStateNotifications);
+        }
     }
 
     // TODO
@@ -744,16 +863,13 @@ public class RilOfono implements RilMiscInterface {
     // iccOpenLogicalChannel(), iccCloseLogicalChannel(), iccTransmitApduLogicalChannel(),
     // iccTransmitApduBasicChannel(), getAtr(), setLocalCallHold()
 
-    private static final String OFONO_BUS_NAME = "org.ofono";
-    private static final String MODEM_PATH = "/gobi_0"; // TODO make this dynamically use the "first" modem we see (because we only expect one)
-
     /*package*/ <T extends DBusInterface> T getOfonoInterface(Class<T> tClass) {
-        return getOfonoInterface(tClass, MODEM_PATH);
+        return getOfonoInterface(tClass, mModemPath);
     }
 
     /*package*/ <T extends DBusInterface> T getOfonoInterface(Class<T> tClass, String path) {
         try {
-            return mDbus.getRemoteObject(OFONO_BUS_NAME, path, tClass);
+            return mDbus.getRemoteObject("org.ofono", path, tClass);
         } catch (DBusException e) {
             throw new RuntimeException("Exception getting "+ tClass.getSimpleName(), e);
         }
@@ -906,19 +1022,6 @@ public class RilOfono implements RilMiscInterface {
         // TODO find a way to pass back the safe parts instead of null?
         //noinspection ConstantConditions
         return LOG_POTENTIALLY_SENSITIVE_INFO ? t : null;
-    }
-
-    private static void runWithNetworkPermittedOnMainThread(Runnable r) {
-        StrictMode.ThreadPolicy standardPolicy = StrictMode.getThreadPolicy();
-        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder(standardPolicy)
-                .permitNetwork()
-                .build());
-
-        try {
-            r.run();
-        } finally {
-            StrictMode.setThreadPolicy(standardPolicy);
-        }
     }
 
     /*

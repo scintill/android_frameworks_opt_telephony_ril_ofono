@@ -49,8 +49,8 @@ import java.util.List;
         os.println("import android.telephony.Rlog;");
         os.println("import com.android.internal.telephony.CommandException;");
         os.println("import static net.scintill.ril_ofono.RilOfono.respondExc;");
-        os.println("import static net.scintill.ril_ofono.RilOfono.privExc;");
         os.println("import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;");
+        os.println("import static com.android.internal.telephony.CommandException.Error.RADIO_NOT_AVAILABLE;");
         os.println("import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;");
 
         os.println("/*package*/ class RilWrapper extends RilWrapperBase {");
@@ -81,17 +81,19 @@ import java.util.List;
             //os.printf("Rlog.v(TAG, \"%s \" + (%s != null ? %s.what : null) + \" \" + (%s != null ? %s.getTarget() : \"\"));%n", commandsIfaceMethod.getName(), messageParamName, messageParamName, messageParamName, messageParamName);
             boolean isAsync = paramTypesExcludingMessage.length != paramTypes.length;
             boolean isOkOnMainThread = moduleMethod.isAnnotationPresent(OkOnMainThread.class);
-            if (isAsync) {
-                if (!isOkOnMainThread) {
-                    os.println("runOnDbusThread(new Runnable() {");
-                    os.println("public void run() {");
-                }
-                os.println("sCurrentMsg = msg;");
-                os.println("try {");
-                os.print("Object ret = ");
-            } else {
+            if (!isAsync) {
                 throw new RuntimeException("is not async! generation of synchronous methods not implemented");
             }
+
+            os.printf("if (!mOfonoIsUp) { respondExc(\"%s\", %s, new CommandException(RADIO_NOT_AVAILABLE), null); return; }%n", commandsIfaceMethod.getName(), messageParamName);
+
+            if (!isOkOnMainThread) {
+                os.println("runOnDbusThread(new Runnable() {");
+                os.println("public void run() {");
+            }
+            os.println("sCurrentMsg = msg;");
+            os.println("try {");
+            os.print("Object ret = ");
             String moduleVarName = "m"+(moduleClass != RilOfono.class ? moduleClass.getSimpleName() : "MiscModule");
             os.print(moduleVarName+"." + commandsIfaceMethod.getName() + "(");
             char paramName = 'a';
@@ -109,7 +111,7 @@ import java.util.List;
             os.println("} catch (CommandException exc) {");
             os.println("respondExc(\"" + commandsIfaceMethod.getName() + "\", " + messageParamName + ", exc, null);");
             os.println("} catch (Throwable thr) {");
-            os.println("Rlog.e(TAG, \"Uncaught exception in " + commandsIfaceMethod.getName() + "\", privExc(thr));");
+            os.printf("logUncaughtException(\"%s\", thr);%n", commandsIfaceMethod.getName());
             os.println("respondExc(\"" + commandsIfaceMethod.getName() + "\", " + messageParamName + ", new CommandException(GENERIC_FAILURE), null);");
             os.println("}");
             if (!isOkOnMainThread) {
@@ -127,7 +129,7 @@ import java.util.List;
         StringBuilder buf = new StringBuilder();
 
         buf.append("@Deprecated\n"); // maybe not really, but this is the cleanest way to suppress a few warnings.
-        // There is one CommandsInterface method with @deprecated doc flag, which is hard to detect,
+        // There is one CommandsInterface method with @deprecated doc flag, which is hard for us to detect,
         // and causes javac to warn because we didn't put @Deprecated annotation on the implementing method.
         // So, just mark them all as deprecated. No sentient beings will be seeing the code we're generating.
 

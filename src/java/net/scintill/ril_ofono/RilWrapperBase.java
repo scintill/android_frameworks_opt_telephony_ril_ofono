@@ -25,14 +25,20 @@ import android.telephony.Rlog;
 
 import com.android.internal.telephony.BaseCommands;
 
+import org.freedesktop.DBus;
+
 import java.lang.reflect.Field;
 
 import static com.android.internal.telephony.RILConstants.NO_PHONE;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
+import static net.scintill.ril_ofono.RilOfono.privExc;
+import static net.scintill.ril_ofono.RilOfono.privStr;
 
 public abstract class RilWrapperBase extends BaseCommands {
 
     protected static final String TAG = RilOfono.TAG;
+
+    /*package*/ boolean mOfonoIsUp = false;
 
     /*package*/ RilMiscInterface mMiscModule;
     /*package*/ RilModemInterface mModemModule;
@@ -41,6 +47,8 @@ public abstract class RilWrapperBase extends BaseCommands {
     /*package*/ RilVoicecallInterface mVoicecallModule;
     /*package*/ RilDatacallInterface mDatacallModule;
     /*package*/ RilSupplementaryServicesInterface mSupplementaryServicesModule;
+
+    /*package*/ final Object mStateMonitor = super.mStateMonitor;
 
     protected static android.os.Message sCurrentMsg;
 
@@ -91,8 +99,19 @@ public abstract class RilWrapperBase extends BaseCommands {
             mDataNetworkStateRegistrants = new RegistrantListAndroidTypeWrapper(super.mDataNetworkStateRegistrants),
             mRilConnectedRegistrants = new RegistrantListAndroidTypeWrapper(super.mRilConnectedRegistrants);
 
-    /*package*/ void setRadioStateHelper(RadioState newState) {
-        setRadioState(newState);
+    /*package*/ void setRadioState(RadioState newState, boolean suppressNotifications) {
+        if (!suppressNotifications) {
+            super.setRadioState(newState);
+        } else {
+            mState = newState;
+        }
+    }
+
+    @Override
+    public RadioState getRadioState() {
+        synchronized (mStateMonitor) {
+            return super.getRadioState();
+        }
     }
 
     ///////////////////////////
@@ -141,6 +160,15 @@ public abstract class RilWrapperBase extends BaseCommands {
             Rlog.v(TAG, caller+" will return later");
         } else {
             RilOfono.respondOk(caller, msg, ret);
+        }
+    }
+
+    protected static void logUncaughtException(String caller, Throwable t) {
+        if (t instanceof DBus.Error.ServiceUnknown || t instanceof DBus.Error.UnknownMethod) {
+            // make these briefer, as they're somewhat expected if oFono or one of its interfaces is not registered
+            Rlog.e(TAG, "Uncaught exception in " + caller + ": " + privStr(t.getMessage()));
+        } else {
+            Rlog.e(TAG, "Uncaught exception in " + caller, privExc(t));
         }
     }
 
