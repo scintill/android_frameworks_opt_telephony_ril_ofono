@@ -41,12 +41,11 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 Nothing is thoroughly tested nor tried on a broad selection of hardware/networks yet, but here's what's been implemented (tested mostly with the rilmodem driver):
 
 * Basic SMS sending and receiving (multipart messages and some international characters tested)
-* Basic voicecalls: dialing, receiving, answering, rejecting
-	* On my device, oFono seems unable to give Line ID (I think it's a RIL parcel mismatch), so numbers are displayed as "Unknown"
+* Basic voicecalls: dial, receive, answer, decline, hang up, send DTMF tones in call
 * User-intiated USSD (special dial codes, such as `#999#` which displays balance on my carrier)
 * Basic data connections
 	* When testing, you might need to turn off wifi to ensure the data connection gets used.
-* Reporting of phone #, ICCID, voicemail # to Android
+* Reporting to Android: phone #, ICCID, voicemail #, voicemail messages alert
 
 # Resources and Credit
 * https://github.com/nitdroid/ofono-ril for some help on mapping ofono properties to Android RIL
