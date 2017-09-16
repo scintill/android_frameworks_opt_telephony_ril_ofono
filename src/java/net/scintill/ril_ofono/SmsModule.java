@@ -121,7 +121,8 @@ import static net.scintill.ril_ofono.RilOfono.respondOk;
 
     }
 
-    private static byte[] normalizePdu(byte[] pdu, int tpdu_len) {
+    private static byte[] normalizePdu(byte[] pdu, byte tpdu_len_b) {
+        int tpdu_len = tpdu_len_b & 0xff;
         // pdu might have smsc prefixed. Android PDU parser assumes it's always there
         if (tpdu_len == pdu.length) {
             byte[] npdu = new byte[pdu.length + 1];

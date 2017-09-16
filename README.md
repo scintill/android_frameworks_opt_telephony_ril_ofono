@@ -38,9 +38,10 @@ The goal of this project is to write an Android RIL daemon implemented on top of
 
 # Features
 
-Nothing is thoroughly tested nor tried on a broad selection of hardware/networks yet, but here's what's been implemented (tested mostly with the rilmodem driver):
+Nothing is thoroughly tested nor tried on a broad selection of hardware/networks yet, but the following have been implemented and tested:
 
 * Basic SMS sending and receiving (multipart messages and some international characters tested)
+* MMS sending and receiving
 * Basic voicecalls: dial, receive, answer, decline, hang up, send DTMF tones in call
 * User-intiated USSD (special dial codes, such as `#999#` which displays balance on my carrier)
 * Basic data connections
@@ -52,7 +53,6 @@ Nothing is thoroughly tested nor tried on a broad selection of hardware/networks
 
 # Bugs and TODO
 * make dbus exceptions be checked exceptions, so the compiler will find them and I have to handle them
-* dexopt/proguard? - see notes in Android.mk
 * crashes in airplane mode trying to query properties on probably not-up interfaces
 * remove anonymous auth from dbus.conf (currently there to ease debugging; not needed for the RIL code to connect properly)
 

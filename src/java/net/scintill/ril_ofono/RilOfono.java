@@ -102,8 +102,6 @@ public class RilOfono implements RilMiscInterface {
             }
         });
         // TODO register with TelephonyDevController ?
-
-        //mMainHandler.postDelayed(new Tests(mSmsModule), 10000);
     }
 
     private void reinitDbus() throws DBusException {
@@ -173,6 +171,8 @@ public class RilOfono implements RilMiscInterface {
         mRilWrapper.updateRilConnection(RIL_VERSION);
 
         // TODO call VoiceManager GetCalls() ? oFono docs on that method suggest you should at startup
+
+        //mMainHandler.postDelayed(new Tests((SmsModule) mRilWrapper.mSmsModule), 10000);
     }
 
     private void onModemDown() {
