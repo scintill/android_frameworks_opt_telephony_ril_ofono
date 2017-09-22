@@ -41,6 +41,7 @@ public abstract class RilWrapperBase extends BaseCommands {
     /*package*/ boolean mOfonoIsUp = false;
 
     /*package*/ RilMiscInterface mMiscModule;
+    /*package*/ RilNetworkRegistrationInterface mNetworkRegistrationModule;
     /*package*/ RilModemInterface mModemModule;
     /*package*/ RilSmsInterface mSmsModule;
     /*package*/ RilSimInterface mSimModule;

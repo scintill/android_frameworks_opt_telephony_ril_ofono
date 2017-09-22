@@ -167,7 +167,7 @@ import java.util.List;
     }
 
     private static final Class<?>[] moduleClasses = new Class<?>[] {
-            ModemModule.class, SmsModule.class, SimModule.class,
+            ModemModule.class, NetworkRegistrationModule.class, SmsModule.class, SimModule.class,
             VoicecallModule.class, DatacallModule.class,
             SupplementaryServicesModule.class,
             RilOfono.class,

@@ -19,14 +19,16 @@
 
 package net.scintill.ril_ofono;
 
-interface RilModemInterface {
+interface RilNetworkRegistrationInterface {
 
-    Object getBasebandVersion();
+    Object getOperator();
 
-    Object getIMEI();
+    Object getNetworkSelectionMode();
 
-    Object getIMEISV();
+    Object getSignalStrength();
 
-    Object setRadioPower(boolean on);
+    Object getVoiceRegistrationState();
+
+    Object getVoiceRadioTechnology();
 
 }

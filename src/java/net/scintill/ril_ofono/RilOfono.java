@@ -148,7 +148,9 @@ public class RilOfono implements RilMiscInterface {
 
         mRilWrapper.mMiscModule = RilOfono.this;
         mRilWrapper.mModemModule = new ModemModule(
-                getOfonoInterface(Modem.class),
+                getOfonoInterface(Modem.class)
+        );
+        mRilWrapper.mNetworkRegistrationModule = new NetworkRegistrationModule(
                 getOfonoInterface(NetworkRegistration.class),
                 mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants
         );
@@ -167,7 +169,7 @@ public class RilOfono implements RilMiscInterface {
         mRilWrapper.mDatacallModule = new DatacallModule(
                 getOfonoInterface(ConnectionManager.class),
                 mRilWrapper.mDataNetworkStateRegistrants, mRilWrapper.mVoiceNetworkStateRegistrants,
-                ((ModemModule) mRilWrapper.mModemModule).mVoiceRadioTechnologyGetter,
+                ((NetworkRegistrationModule) mRilWrapper.mNetworkRegistrationModule).mVoiceRadioTechnologyGetter,
                 INetworkManagementService.Stub.asInterface(ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE))
         );
         mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(

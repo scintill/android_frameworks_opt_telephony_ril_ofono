@@ -33,8 +33,8 @@ import com.android.internal.telephony.RILConstants;
 import com.android.internal.telephony.dataconnection.DataCallResponse;
 import com.android.internal.telephony.dataconnection.DcFailCause;
 
-import net.scintill.ril_ofono.ModemModule.OfonoNetworkTechnology;
-import net.scintill.ril_ofono.ModemModule.OfonoRegistrationState;
+import net.scintill.ril_ofono.NetworkRegistrationModule.OfonoNetworkTechnology;
+import net.scintill.ril_ofono.NetworkRegistrationModule.OfonoRegistrationState;
 
 import org.freedesktop.dbus.Path;
 import org.freedesktop.dbus.Variant;
