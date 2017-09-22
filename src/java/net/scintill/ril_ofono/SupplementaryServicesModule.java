@@ -33,10 +33,10 @@ import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOT_SUP
     private final SupplementaryServices mSupplSvcs;
     private final RilOfono.RegistrantList mUSSDRegistrants;
 
-    /*package*/ SupplementaryServicesModule(RilOfono.RegistrantList USSDRegistrant) {
+    /*package*/ SupplementaryServicesModule(SupplementaryServices supplSvcs, RilOfono.RegistrantList USSDRegistrant) {
         mUSSDRegistrants = USSDRegistrant;
 
-        mSupplSvcs = RilOfono.sInstance.getOfonoInterface(SupplementaryServices.class);
+        mSupplSvcs = supplSvcs;
     }
 
     @Override

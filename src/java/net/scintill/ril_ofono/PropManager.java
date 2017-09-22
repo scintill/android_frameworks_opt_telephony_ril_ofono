@@ -125,9 +125,9 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
             final Field fValue = propChangeSignalClass.getField("value");
             final Method mtOnPropChange = this.getClass().getDeclaredMethod("onPropChange", sourceObIface, String.class, Variant.class);
 
-            RilOfono.sInstance.registerDbusSignal(propChangeSignalClass, new DBusSigHandler<PropChangeSignalT>() {
+            RilOfono.sInstance.registerDbusSignal(PropManager.this, propChangeSignalClass, new DBusSigHandler<PropChangeSignalT>() {
                 @Override
-                public void handle(DBusSignal s) {
+                public void handle(PropChangeSignalT s) {
                     try {
                         String name = (String)fName.get(s);
                         Variant value = (Variant)fValue.get(s);

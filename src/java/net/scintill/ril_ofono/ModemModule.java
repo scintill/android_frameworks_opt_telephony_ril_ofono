@@ -57,16 +57,15 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final Map<String, Variant<?>> mModemProps = new HashMap<>();
     private final Map<String, Variant<?>> mNetRegProps = new HashMap<>();
 
-    /*package*/ ModemModule(RegistrantList voiceNetworkStateRegistrants, RegistrantList voiceRadioTechChangedRegistrants, RilOfono.RegistrantList signalStrengthRegistrants) {
+    /*package*/ ModemModule(Modem modem, NetworkRegistration netReg, RegistrantList voiceNetworkStateRegistrants, RegistrantList voiceRadioTechChangedRegistrants, RegistrantList signalStrengthRegistrants) {
         mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
         mVoiceRadioTechChangedRegistrants = voiceRadioTechChangedRegistrants;
         mSignalStrengthRegistrants = signalStrengthRegistrants;
 
-        mModem = RilOfono.sInstance.getOfonoInterface(Modem.class);
-        NetworkRegistration mNetReg = RilOfono.sInstance.getOfonoInterface(NetworkRegistration.class);
+        mModem = modem;
 
         mirrorProps(Modem.class, mModem, Modem.PropertyChanged.class, mModemProps);
-        mirrorProps(NetworkRegistration.class, mNetReg, NetworkRegistration.PropertyChanged.class, mNetRegProps);
+        mirrorProps(NetworkRegistration.class, netReg, NetworkRegistration.PropertyChanged.class, mNetRegProps);
     }
 
     @Override

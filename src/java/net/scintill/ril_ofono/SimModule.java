@@ -49,14 +49,11 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     /*package*/ static final String SIM_APP_ID = "00";
 
-    /*package*/ SimModule(RegistrantList iccStatusChangedRegistrants, RegistrantList iccRefreshRegistrants) {
+    /*package*/ SimModule(SimManager sim, MessageWaiting msgWaiting, RegistrantList iccStatusChangedRegistrants, RegistrantList iccRefreshRegistrants) {
         Map<String, Variant<?>> msgWaitingProps = new HashMap<>();
 
         mIccStatusChangedRegistrants = iccStatusChangedRegistrants;
         mSimFiles = new SimFiles(mSimProps, msgWaitingProps, iccRefreshRegistrants);
-
-        SimManager sim = RilOfono.sInstance.getOfonoInterface(SimManager.class);
-        MessageWaiting msgWaiting = RilOfono.sInstance.getOfonoInterface(MessageWaiting.class);
 
         mirrorProps(SimManager.class, sim, SimManager.PropertyChanged.class, mSimProps);
         mirrorProps(MessageWaiting.class, msgWaiting, MessageWaiting.PropertyChanged.class, msgWaitingProps);

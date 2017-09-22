@@ -74,18 +74,18 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final Map<String, Map<String, Variant<?>>> mConnectionsProps = new HashMap<>();
     private final Map<String, String> mLastInterface = new HashMap<>();
 
-    DatacallModule(RegistrantList dataNetworkStateRegistrants, RegistrantList voiceNetworkStateRegistrants, VoiceRadioTechnologyGetter voiceRadioTechnologyGetter, INetworkManagementService networkManagementService) {
+    DatacallModule(ConnectionManager connMan, RegistrantList dataNetworkStateRegistrants, RegistrantList voiceNetworkStateRegistrants, VoiceRadioTechnologyGetter voiceRadioTechnologyGetter, INetworkManagementService networkManagementService) {
         mDataNetworkStateRegistrants = dataNetworkStateRegistrants;
         mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
         mVoiceRadioTechnologyGetter = voiceRadioTechnologyGetter;
         mNetworkManagementService = networkManagementService;
 
-        mConnMan = RilOfono.sInstance.getOfonoInterface(ConnectionManager.class);
+        mConnMan = connMan;
 
-        RilOfono.sInstance.registerDbusSignal(ConnectionManager.ContextAdded.class, this);
-        RilOfono.sInstance.registerDbusSignal(ConnectionManager.ContextRemoved.class, this);
+        RilOfono.sInstance.registerDbusSignal(this, ConnectionManager.ContextAdded.class, this);
+        RilOfono.sInstance.registerDbusSignal(this, ConnectionManager.ContextRemoved.class, this);
         mirrorProps(ConnectionManager.class, mConnMan, ConnectionManager.PropertyChanged.class, mConnManProps);
-        RilOfono.sInstance.registerDbusSignal(ConnectionContext.PropertyChanged.class, this);
+        RilOfono.sInstance.registerDbusSignal(this, ConnectionContext.PropertyChanged.class, this);
     }
 
     @Override

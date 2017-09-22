@@ -60,14 +60,14 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private VoiceCallManager mCallManager;
     private RegistrantList mCallStateRegistrants;
 
-    /*package*/ VoicecallModule(RegistrantList callStateRegistrants) {
+    /*package*/ VoicecallModule(VoiceCallManager callManager, RegistrantList callStateRegistrants) {
         mCallStateRegistrants = callStateRegistrants;
 
-        mCallManager = RilOfono.sInstance.getOfonoInterface(VoiceCallManager.class);
+        mCallManager = callManager;
 
-        RilOfono.sInstance.registerDbusSignal(VoiceCallManager.CallAdded.class, this);
-        RilOfono.sInstance.registerDbusSignal(VoiceCall.PropertyChanged.class, this);
-        RilOfono.sInstance.registerDbusSignal(VoiceCallManager.CallRemoved.class, this);
+        RilOfono.sInstance.registerDbusSignal(this, VoiceCallManager.CallAdded.class, this);
+        RilOfono.sInstance.registerDbusSignal(this, VoiceCall.PropertyChanged.class, this);
+        RilOfono.sInstance.registerDbusSignal(this, VoiceCallManager.CallRemoved.class, this);
     }
 
     @Override

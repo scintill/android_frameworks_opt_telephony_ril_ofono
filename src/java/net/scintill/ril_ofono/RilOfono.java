@@ -28,6 +28,7 @@ import android.os.Message;
 import android.os.ServiceManager;
 import android.telephony.Rlog;
 import android.text.TextUtils;
+import android.util.Pair;
 
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.cdma.CdmaSmsBroadcastConfigInfo;
@@ -42,9 +43,16 @@ import org.freedesktop.dbus.DBusInterface;
 import org.freedesktop.dbus.DBusSigHandler;
 import org.freedesktop.dbus.DBusSignal;
 import org.freedesktop.dbus.exceptions.DBusException;
+import org.ofono.ConnectionManager;
 import org.ofono.Manager;
+import org.ofono.MessageManager;
+import org.ofono.MessageWaiting;
 import org.ofono.Modem;
+import org.ofono.NetworkRegistration;
 import org.ofono.PathAndProperties;
+import org.ofono.SimManager;
+import org.ofono.SupplementaryServices;
+import org.ofono.VoiceCallManager;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -54,8 +62,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
@@ -94,7 +104,10 @@ public class RilOfono implements RilMiscInterface {
             @Override
             public void run() {
                 try {
-                    reinitDbus();
+                    mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
+                    registerDbusSignal(RilOfono.this, Manager.ModemAdded.class, RilOfono.this);
+                    registerDbusSignal(RilOfono.this, Manager.ModemRemoved.class, RilOfono.this);
+                    registerDbusSignal(RilOfono.this, Modem.PropertyChanged.class, RilOfono.this);
                     checkModemPresence();
                 } catch (Throwable t) {
                     throw new RuntimeException("exception while loading", t);
@@ -102,17 +115,6 @@ public class RilOfono implements RilMiscInterface {
             }
         });
         // TODO register with TelephonyDevController ?
-    }
-
-    private void reinitDbus() throws DBusException {
-        if (mDbus != null) {
-            mDbus.disconnect();
-            mDbus = null;
-        }
-        mDbus = DBusConnection.getConnection(DBUS_ADDRESS);
-        registerDbusSignal(Manager.ModemAdded.class, RilOfono.this);
-        registerDbusSignal(Manager.ModemRemoved.class, RilOfono.this);
-        registerDbusSignal(Modem.PropertyChanged.class, RilOfono.this);
     }
 
     private final Object mModemPresenceMonitor = new Object();
@@ -145,16 +147,33 @@ public class RilOfono implements RilMiscInterface {
         startSuppressingRadioStateNotifications();
 
         mRilWrapper.mMiscModule = RilOfono.this;
-        mRilWrapper.mModemModule = new ModemModule(mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants);
-        mRilWrapper.mSmsModule = new SmsModule(mRilWrapper.mGsmSmsRegistrants); // TODO gsm-specific
-        mRilWrapper.mSimModule = new SimModule(mRilWrapper.mIccStatusChangedRegistrants, mRilWrapper.mIccRefreshRegistrants);
-        mRilWrapper.mVoicecallModule = new VoicecallModule(mRilWrapper.mCallStateRegistrants);
+        mRilWrapper.mModemModule = new ModemModule(
+                getOfonoInterface(Modem.class),
+                getOfonoInterface(NetworkRegistration.class),
+                mRilWrapper.mVoiceNetworkStateRegistrants, mRilWrapper.mVoiceRadioTechChangedRegistrants, mRilWrapper.mSignalStrengthRegistrants
+        );
+        mRilWrapper.mSmsModule = new SmsModule( // TODO gsm-specific
+                getOfonoInterface(MessageManager.class),
+                mRilWrapper.mGsmSmsRegistrants
+        );
+        mRilWrapper.mSimModule = new SimModule(
+                getOfonoInterface(SimManager.class), getOfonoInterface(MessageWaiting.class),
+                mRilWrapper.mIccStatusChangedRegistrants, mRilWrapper.mIccRefreshRegistrants
+        );
+        mRilWrapper.mVoicecallModule = new VoicecallModule(
+                getOfonoInterface(VoiceCallManager.class),
+                mRilWrapper.mCallStateRegistrants
+        );
         mRilWrapper.mDatacallModule = new DatacallModule(
+                getOfonoInterface(ConnectionManager.class),
                 mRilWrapper.mDataNetworkStateRegistrants, mRilWrapper.mVoiceNetworkStateRegistrants,
                 ((ModemModule) mRilWrapper.mModemModule).mVoiceRadioTechnologyGetter,
                 INetworkManagementService.Stub.asInterface(ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE))
         );
-        mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(mRilWrapper.mUSSDRegistrants);
+        mRilWrapper.mSupplementaryServicesModule = new SupplementaryServicesModule(
+                getOfonoInterface(SupplementaryServices.class),
+                mRilWrapper.mUSSDRegistrants
+        );
 
         mRilWrapper.mOfonoIsUp = true;
 
@@ -179,14 +198,18 @@ public class RilOfono implements RilMiscInterface {
         Rlog.v(TAG, "modem down");
         mModemPath = null;
 
-        try {
-            reinitDbus(); // somewhat lazy way to clear signal handlers the modules installed
-        } catch (DBusException e) {
-            Rlog.e(TAG, "onModemDown: exception from reinitDbus", privExc(e));
-        }
-
         mRilWrapper.mOfonoIsUp = false;
 
+        // do not unregister mMiscModule, because it's this object and we're not being removed
+        for (Object o : new Object[] { mRilWrapper.mModemModule, mRilWrapper.mSmsModule, mRilWrapper.mSimModule, mRilWrapper.mVoicecallModule, mRilWrapper.mDatacallModule, mRilWrapper.mSupplementaryServicesModule }) {
+            try {
+                onObjectDeathRemoveSignalHandlers(o);
+            } catch (DBusException e) {
+                // This should be pretty fatal, because otherwise we have inactive, untracked
+                // objects reacting to signals. Better to crash and get restarted.
+                throw new RuntimeException("Error removing signal handlers for "+o.getClass().getName(), e);
+            }
+        }
         mRilWrapper.mMiscModule = null;
         mRilWrapper.mModemModule = null;
         mRilWrapper.mSmsModule = null;
@@ -863,7 +886,7 @@ public class RilOfono implements RilMiscInterface {
     // iccOpenLogicalChannel(), iccCloseLogicalChannel(), iccTransmitApduLogicalChannel(),
     // iccTransmitApduBasicChannel(), getAtr(), setLocalCallHold()
 
-    /*package*/ <T extends DBusInterface> T getOfonoInterface(Class<T> tClass) {
+    private <T extends DBusInterface> T getOfonoInterface(Class<T> tClass) {
         return getOfonoInterface(tClass, mModemPath);
     }
 
@@ -875,20 +898,48 @@ public class RilOfono implements RilMiscInterface {
         }
     }
 
+    private final Map<Object, List<RegisteredRilOfonoSignalHandler<?extends DBusSignal>>> mMapObjectToSignalHandlers = new HashMap<>();
+
+    private <T extends DBusSignal> void trackSignalHandler(Object registeringObject, Class<T> sigClass, DBusSigHandler<T> handler) {
+        synchronized (mMapObjectToSignalHandlers) {
+            List<RegisteredRilOfonoSignalHandler<?>> l = mMapObjectToSignalHandlers.get(registeringObject);
+            if (l == null) {
+                mMapObjectToSignalHandlers.put(registeringObject, l = new ArrayList<>());
+            }
+            l.add(new RegisteredRilOfonoSignalHandler<>(sigClass, handler));
+        }
+    }
+
+    private <T extends DBusSignal> void onObjectDeathRemoveSignalHandlers(Object deadObj) throws DBusException {
+        synchronized (mMapObjectToSignalHandlers) {
+            List<RegisteredRilOfonoSignalHandler<?extends DBusSignal>> l = mMapObjectToSignalHandlers.get(deadObj);
+            if (l != null) {
+                for (int i = 0; i < l.size(); i++) {
+                    @SuppressWarnings("unchecked") RegisteredRilOfonoSignalHandler<T> handler = (RegisteredRilOfonoSignalHandler<T>) l.get(i);
+                    //Rlog.v(TAG, "removeSigHandler "+handler.first+" "+handler.second);
+                    mDbus.removeSigHandler(handler.first, handler.second);
+                }
+                mMapObjectToSignalHandlers.remove(deadObj);
+            }
+        }
+    }
+
     // no exception catch-all will be provided
-    /*package*/ <T extends DBusSignal> void registerDbusSignal(Class<T> signalClass, DBusSigHandler<T> handler) {
+    /*package*/ <T extends DBusSignal> void registerDbusSignal(Object registeringObject, Class<T> signalClass, DBusSigHandler<T> handler) {
         try {
+            //Rlog.v(TAG, "addSigHandler "+signalClass.getName()+" "+handler);
             mDbus.addSigHandler(signalClass, handler);
+            trackSignalHandler(registeringObject, signalClass, handler);
         } catch (DBusException e) {
             throw new RuntimeException("Unable to register dbus signal handler", e);
         }
     }
 
     // an exception catch-all (that logs exceptions with privExc()) will be provided
-    /*package*/ <T extends DBusSignal> void registerDbusSignal(Class<T> signalClass, final Object handler) {
+    /*package*/ <T extends DBusSignal> void registerDbusSignal(final Object registeringObject, Class<T> signalClass, final Object handler) {
         try {
             final Method m = handler.getClass().getMethod("handle", signalClass);
-            mDbus.addSigHandler(signalClass, new DBusSigHandler<T>() {
+            DBusSigHandler<T> typedHandler = new DBusSigHandler<T>() {
                 @Override
                 public void handle(T s) {
                     try {
@@ -900,7 +951,10 @@ public class RilOfono implements RilMiscInterface {
                         // do not re-throw
                     }
                 }
-            });
+            };
+            //Rlog.v(TAG, "addSigHandler "+signalClass.getName()+" "+typedHandler);
+            mDbus.addSigHandler(signalClass, typedHandler);
+            trackSignalHandler(registeringObject, signalClass, typedHandler);
         } catch (NoSuchMethodException e) {
             throw new RuntimeException("Unable to find dbus signal handler", e);
         } catch (DBusException e) {
@@ -1031,6 +1085,11 @@ public class RilOfono implements RilMiscInterface {
         void notifyResult(Object result);
     }
 
+    private class RegisteredRilOfonoSignalHandler<T extends DBusSignal> extends Pair<Class<T>, DBusSigHandler<T>> {
+        public RegisteredRilOfonoSignalHandler(Class<T> first, DBusSigHandler<T> second) {
+            super(first, second);
+        }
+    }
 }
 
 // mostly a tag type to remind me use this correctly (only construct one for each purpose)

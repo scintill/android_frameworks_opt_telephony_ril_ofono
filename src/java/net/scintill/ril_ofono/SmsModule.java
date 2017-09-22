@@ -54,12 +54,12 @@ import static net.scintill.ril_ofono.RilOfono.respondOk;
     // TODO synchronization on this map object is how I ensure signals don't arrive before the entry into this map,
     // but are there any adverse effects of synchronizing so broadly?
 
-    /*package*/ SmsModule(RilOfono.RegistrantList smsRegistrants) {
+    /*package*/ SmsModule(MessageManager messenger, RilOfono.RegistrantList smsRegistrants) {
         mSmsRegistrants = smsRegistrants;
 
-        mMessenger = RilOfono.sInstance.getOfonoInterface(MessageManager.class);
-        RilOfono.sInstance.registerDbusSignal(MessageManager.IncomingPdu.class, this);
-        RilOfono.sInstance.registerDbusSignal(org.ofono.Message.PropertyChanged.class, this);
+        mMessenger = messenger;
+        RilOfono.sInstance.registerDbusSignal(this, MessageManager.IncomingPdu.class, this);
+        RilOfono.sInstance.registerDbusSignal(this, org.ofono.Message.PropertyChanged.class, this);
     }
 
     @Override
