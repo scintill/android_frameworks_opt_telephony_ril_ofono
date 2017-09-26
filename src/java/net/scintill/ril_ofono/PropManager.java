@@ -22,13 +22,11 @@ package net.scintill.ril_ofono;
 import android.annotation.NonNull;
 import android.telephony.Rlog;
 
-import org.freedesktop.DBus;
 import org.freedesktop.dbus.DBusInterface;
-import org.freedesktop.dbus.DBusSigHandler;
 import org.freedesktop.dbus.DBusSignal;
 import org.freedesktop.dbus.Variant;
+import org.freedesktop.dbus.exceptions.DBusExecutionException;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -44,13 +42,13 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
 
     private static final String TAG = RilOfono.TAG;
 
-    private static boolean logAndUpdateProp(Map<String, Variant<?>> propsToUpdate, String thingChangingDebugRef, String name, Variant<?> value) {
+    private static boolean logAndUpdateProp(Map<String, Variant<?>> propsToUpdate, String thingChangingDebugRef, String name, Variant<?> value, boolean log) {
         boolean changed;
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToUpdate) {
             changed = !Objects.equal(value, propsToUpdate.put(name, value));
         }
-        if (changed) {
+        if (changed && log) {
             Rlog.i(TAG, thingChangingDebugRef + " propchange: " + name + "=" + privStr(value));
         }
         return changed;
@@ -61,7 +59,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         if (propsToUpdate == null) {
             propsToUpdateRoot.put(keyToUpdate, propsToUpdate = new HashMap<>());
         }
-        return logAndUpdateProp(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value);
+        return logAndUpdateProp(propsToUpdate, dbusObIface.getSimpleName()+" "+keyToUpdate, name, value, true);
     }
 
     protected static void putOrMerge2dProps(Map<String, Map<String, Variant<?>>> rootProps, String key, Map<String, Variant<?>> props) {
@@ -76,7 +74,7 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         }
     }
 
-    private void initProps(Map<String, Variant<?>> propsToInit, Class<?extends DBusInterface> sourceObIface, DBusInterface sourceOb) {
+    protected void initProps(Map<String, Variant<?>> propsToInit, Class<?extends DBusInterface> sourceObIface, DBusInterface sourceOb) throws DBusExecutionException {
         // load properties
         Map<String, Variant<?>> props;
         try {
@@ -87,25 +85,20 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
         } catch (NoSuchMethodException | IllegalAccessException | ClassCastException e) {
             throw new RuntimeException("unable to find GetProperties method", e);
         } catch (InvocationTargetException e) {
-            try {
-                throw e.getCause();
-            } catch (DBus.Error.UnknownMethod unknownMethod) {
-                Rlog.w(TAG, "unable to GetProperties() on " + sourceObIface.getSimpleName());
-                // probably just isn't loaded yet, so give empty props
-                props = new HashMap<>();
-            } catch (Throwable t) {
-                throw new RuntimeException("error calling GetProperties() on " + sourceObIface.getSimpleName(), t);
+            if (e.getCause() instanceof DBusExecutionException) {
+                throw (DBusExecutionException) e.getCause();
             }
+            throw new RuntimeException("error calling GetProperties() on " + sourceObIface.getSimpleName(), e.getCause());
         }
 
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (propsToInit) {
-            propsToInit.clear();
             try {
-                Method m = this.getClass().getDeclaredMethod("onPropChange", sourceObIface, String.class, Variant.class);
+                Method mtOnPropChange = this.getClass().getDeclaredMethod("onPropChange", sourceObIface, String.class, Variant.class);
                 for (Map.Entry<String, Variant<?>> entry : props.entrySet()) {
-                    logAndUpdateProp(propsToInit, sourceObIface.getSimpleName()+"#init", entry.getKey(), entry.getValue());
-                    m.invoke(this, sourceOb, entry.getKey(), entry.getValue());
+                    if (logAndUpdateProp(propsToInit, sourceObIface.getSimpleName()+"#init", entry.getKey(), entry.getValue(), true)) {
+                        mtOnPropChange.invoke(this, sourceOb, entry.getKey(), entry.getValue());
+                    }
                 }
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new RuntimeException("unable to find onPropChange method", e);
@@ -117,43 +110,32 @@ import static net.scintill.ril_ofono.RilOfono.privStr;
     }
 
     /*
-     * The consuming class must have a method onPropChange(<sourceObIface> sourceOb, String name, Variant value)
+     * The class must have a method onPropChange(<sourceObIface> sourceOb, String name, Variant value)
      */
-    protected <PropChangeSignalT extends DBusSignal> void mirrorProps(final Class<? extends DBusInterface> sourceObIface, final DBusInterface sourceOb, final Class<PropChangeSignalT> propChangeSignalClass, final Map<String, Variant<?>> props) {
+    /*package*/ <PropChangeSignalT extends DBusSignal> void handle(PropChangeSignalT s, DBusInterface sourceOb, Class<PropChangeSignalT> propChangeSignalClass, Map<String, Variant<?>> props, Class<? extends DBusInterface> sourceObIface) {
+        handle(s, sourceOb, propChangeSignalClass, props, sourceObIface, true);
+    }
+
+    /*package*/ <PropChangeSignalT extends DBusSignal> void handle(PropChangeSignalT s, DBusInterface sourceOb, Class<PropChangeSignalT> propChangeSignalClass, Map<String, Variant<?>> props, Class<? extends DBusInterface> sourceObIface, boolean log) {
         try {
-            final Field fName = propChangeSignalClass.getField("name");
-            final Field fValue = propChangeSignalClass.getField("value");
-            final Method mtOnPropChange = this.getClass().getDeclaredMethod("onPropChange", sourceObIface, String.class, Variant.class);
-
-            RilOfono.sInstance.registerDbusSignal(PropManager.this, propChangeSignalClass, new DBusSigHandler<PropChangeSignalT>() {
-                @Override
-                public void handle(PropChangeSignalT s) {
-                    try {
-                        String name = (String)fName.get(s);
-                        Variant value = (Variant)fValue.get(s);
-                        if (logAndUpdateProp(props, sourceObIface.getSimpleName(), name, value)) {
-                            mtOnPropChange.invoke(PropManager.this, sourceOb, name, value);
-                        }
-                    } catch (IllegalAccessException e) {
-                        throw new RuntimeException("unable to handle propchange signal", e);
-                    } catch (InvocationTargetException e) {
-                        Rlog.e(TAG, "exception in onPropChange()", privExc(e.getCause()));
-                        // do not re-throw
-                    }
-                }
-            });
-        } catch (NoSuchFieldException | NoSuchMethodException e) {
-            throw new RuntimeException("unable to register propchange signal", e);
+            String name = (String) propChangeSignalClass.getField("name").get(s);
+            Variant<?> value = (Variant<?>) propChangeSignalClass.getField("value").get(s);
+            if (logAndUpdateProp(props, sourceObIface.getSimpleName(), name, value, log)) {
+                Method mtOnPropChange = this.getClass().getDeclaredMethod("onPropChange", sourceObIface, String.class, Variant.class);
+                mtOnPropChange.invoke(PropManager.this, sourceOb, name, value);
+            }
+        } catch (NoSuchFieldException | NoSuchMethodException | IllegalAccessException e) {
+            throw new RuntimeException("unable to handle propchange signal", e);
+        } catch (InvocationTargetException e) {
+            Rlog.e(TAG, "exception in onPropChange()", privExc(e.getCause()));
+            // do not re-throw
         }
-
-        initProps(props, sourceObIface, sourceOb);
     }
 
     @SuppressWarnings("unchecked")
     /*package*/ static <T> T getProp(Map<String, Variant<?>> props, String key, T defaultValue) {
         return props.get(key) != null ? (T) props.get(key).getValue() : defaultValue;
     }
-
 
     /*package*/ static <T> T[] getProp(Map<String, Variant<?>> props, String key, @NonNull T[] defaultValue) {
         if (props.get(key) != null) {

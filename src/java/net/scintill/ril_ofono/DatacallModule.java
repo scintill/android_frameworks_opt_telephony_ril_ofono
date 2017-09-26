@@ -40,6 +40,8 @@ import org.freedesktop.dbus.Path;
 import org.freedesktop.dbus.Variant;
 import org.ofono.ConnectionContext;
 import org.ofono.ConnectionManager;
+import org.ofono.Error.NotAttached;
+import org.ofono.NetworkRegistration;
 import org.ofono.StructPathAndProps;
 
 import java.net.Inet4Address;
@@ -53,6 +55,7 @@ import libcore.io.Memory;
 
 import static com.android.internal.telephony.CommandException.Error.MODE_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandException.Error.NO_SUCH_ELEMENT;
+import static com.android.internal.telephony.CommandException.Error.OP_NOT_ALLOWED_BEFORE_REG_NW;
 import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 import static net.scintill.ril_ofono.RilOfono.RegistrantList;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
@@ -65,27 +68,35 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private static final String TAG = RilOfono.TAG;
 
     private ConnectionManager mConnMan;
+    private NetworkRegistration mNetReg;
     private INetworkManagementService mNetworkManagementService;
     private RegistrantList mDataNetworkStateRegistrants;
     private RegistrantList mVoiceNetworkStateRegistrants;
-    private VoiceRadioTechnologyGetter mVoiceRadioTechnologyGetter;
 
+    private final Map<String, Variant<?>> mNetRegProps = new HashMap<>();
     private final Map<String, Variant<?>> mConnManProps = new HashMap<>();
     private final Map<String, Map<String, Variant<?>>> mConnectionsProps = new HashMap<>();
     private final Map<String, String> mLastInterface = new HashMap<>();
 
-    DatacallModule(ConnectionManager connMan, RegistrantList dataNetworkStateRegistrants, RegistrantList voiceNetworkStateRegistrants, VoiceRadioTechnologyGetter voiceRadioTechnologyGetter, INetworkManagementService networkManagementService) {
+    DatacallModule(ConnectionManager connMan, NetworkRegistration netReg, RegistrantList dataNetworkStateRegistrants, RegistrantList voiceNetworkStateRegistrants, INetworkManagementService networkManagementService) {
+        Rlog.v(TAG, "DatacallModule()");
+        mConnMan = connMan;
+        mNetReg = netReg;
         mDataNetworkStateRegistrants = dataNetworkStateRegistrants;
         mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
-        mVoiceRadioTechnologyGetter = voiceRadioTechnologyGetter;
         mNetworkManagementService = networkManagementService;
 
-        mConnMan = connMan;
+        initProps(mConnManProps, ConnectionManager.class, mConnMan);
+        initProps(mNetRegProps, NetworkRegistration.class, mNetReg);
+    }
 
-        RilOfono.sInstance.registerDbusSignal(this, ConnectionManager.ContextAdded.class, this);
-        RilOfono.sInstance.registerDbusSignal(this, ConnectionManager.ContextRemoved.class, this);
-        mirrorProps(ConnectionManager.class, mConnMan, ConnectionManager.PropertyChanged.class, mConnManProps);
-        RilOfono.sInstance.registerDbusSignal(this, ConnectionContext.PropertyChanged.class, this);
+    /*package*/ void handle(ConnectionManager.PropertyChanged s) {
+        handle(s, mConnMan, ConnectionManager.PropertyChanged.class, mConnManProps, ConnectionManager.class);
+    }
+
+    /*package*/ void handle(NetworkRegistration.PropertyChanged s) {
+        handle(s, mNetReg, NetworkRegistration.PropertyChanged.class, mNetRegProps, NetworkRegistration.class, false);
+        // suppress logs because the NetworkRegistrationModule will be outputting them and I don't want double
     }
 
     @Override
@@ -131,8 +142,12 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
         Path ctxPath = mConnMan.AddContext("internet");
         ConnectionContext ctx = RilOfono.sInstance.getOfonoInterface(ConnectionContext.class, ctxPath.getPath());
-        apn.setOnContext(ctx);
-        setContextActive(ctx, true);
+        try {
+            apn.setOnContext(ctx);
+            setContextActive(ctx, true);
+        } catch (NotAttached e) {
+            throw new CommandException(OP_NOT_ALLOWED_BEFORE_REG_NW);
+        }
         return new PrivResponseOb(getDataCallResponse(ctxPath.getPath(), ctx.GetProperties()));
     }
 
@@ -218,7 +233,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         ctx.SetProperty("Active", new Variant<>(active));
     }
 
-    public void handle(ConnectionContext.PropertyChanged s) {
+    /*package*/ void handle(ConnectionContext.PropertyChanged s) {
         if (handle2dPropChange(mConnectionsProps, s.getPath(), ConnectionContext.class, s.name, s.value)) {
             runOnMainThreadDebounced(mFnNotifyDataNetworkState, 200);
         }
@@ -234,7 +249,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     }
 
-    public void onPropChange(ConnectionManager connMan, String name, Variant<?> value) {
+    protected void onPropChange(ConnectionManager connMan, String name, Variant<?> value) {
         if (name.equals("Attached")) {
             mConnectionsProps.clear();
             if (value.getValue().equals(Boolean.TRUE)) {
@@ -249,12 +264,19 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         runOnMainThreadDebounced(mFnNotifyDataNetworkState, 200);
     }
 
-    public void handle(ConnectionManager.ContextAdded s) {
+    protected void onPropChange(NetworkRegistration netReg, String name, Variant<?> value) {
+        // XXX workaround possible oFono bug. We may never find out we're Attached without this...
+        if (name.equals("Status")) {
+            initProps(mConnManProps, ConnectionManager.class, mConnMan);
+        }
+    }
+
+    /*package*/ void handle(ConnectionManager.ContextAdded s) {
         mConnectionsProps.put(s.path.getPath(), new HashMap<>(s.properties)); // copy because DBus's is immutable
         runOnMainThreadDebounced(mFnNotifyDataNetworkState, 200);
     }
 
-    public void handle(ConnectionManager.ContextRemoved s) {
+    /*package*/ void handle(ConnectionManager.ContextRemoved s) {
         String dbusPath = s.path.getPath();
 
         // tear down interface
@@ -341,15 +363,11 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         return Integer.bitCount(Memory.peekInt(netmask.getAddress(), 0, ByteOrder.BIG_ENDIAN));
     }
 
-    /*package*/ interface VoiceRadioTechnologyGetter {
-        OfonoNetworkTechnology getVoiceRadioTechnology();
-    }
-
     private OfonoNetworkTechnology getBearerTechnology() {
         // ConnectionManager Bearer property is optional, so fall back on voice radio tech
-        OfonoNetworkTechnology tech = getProp(mConnManProps, "Bearer", OfonoNetworkTechnology._unknown);
-        if (tech == OfonoNetworkTechnology._unknown) {
-            tech = mVoiceRadioTechnologyGetter.getVoiceRadioTechnology();
+        OfonoNetworkTechnology tech = getProp(mConnManProps, "Bearer", OfonoNetworkTechnology.none);
+        if (tech == OfonoNetworkTechnology.none) {
+            tech = getProp(mNetRegProps, "Technology", OfonoNetworkTechnology.none);
         }
         return tech;
     }

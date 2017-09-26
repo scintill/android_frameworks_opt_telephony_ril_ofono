@@ -50,7 +50,6 @@ import java.util.List;
         os.println("import com.android.internal.telephony.CommandException;");
         os.println("import static net.scintill.ril_ofono.RilOfono.respondExc;");
         os.println("import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;");
-        os.println("import static com.android.internal.telephony.CommandException.Error.RADIO_NOT_AVAILABLE;");
         os.println("import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;");
 
         os.println("/*package*/ class RilWrapper extends RilWrapperBase {");
@@ -85,7 +84,11 @@ import java.util.List;
                 throw new RuntimeException("is not async! generation of synchronous methods not implemented");
             }
 
-            os.printf("if (!mOfonoIsUp) { respondExc(\"%s\", %s, new CommandException(RADIO_NOT_AVAILABLE), null); return; }%n", commandsIfaceMethod.getName(), messageParamName);
+            String moduleVarName = "mRilOfono.m"+(moduleClass != RilOfono.class ? moduleClass.getSimpleName() : "MiscModule");
+
+            os.printf("if (%s == null) { respondExc(\"%s [nomodule]\", %s, new CommandException(GENERIC_FAILURE), null); return; }%n",
+                    moduleVarName,
+                    commandsIfaceMethod.getName(), messageParamName);
 
             if (!isOkOnMainThread) {
                 os.println("runOnDbusThread(new Runnable() {");
@@ -94,7 +97,6 @@ import java.util.List;
             os.println("sCurrentMsg = msg;");
             os.println("try {");
             os.print("Object ret = ");
-            String moduleVarName = "m"+(moduleClass != RilOfono.class ? moduleClass.getSimpleName() : "MiscModule");
             os.print(moduleVarName+"." + commandsIfaceMethod.getName() + "(");
             char paramName = 'a';
             for (Class<?> paramType : paramTypes) {
@@ -111,7 +113,7 @@ import java.util.List;
             os.println("} catch (CommandException exc) {");
             os.println("respondExc(\"" + commandsIfaceMethod.getName() + "\", " + messageParamName + ", exc, null);");
             os.println("} catch (Throwable thr) {");
-            os.printf("logUncaughtException(\"%s\", thr);%n", commandsIfaceMethod.getName());
+            os.printf("RilOfono.logUncaughtException(\"%s\", thr);%n", commandsIfaceMethod.getName());
             os.println("respondExc(\"" + commandsIfaceMethod.getName() + "\", " + messageParamName + ", new CommandException(GENERIC_FAILURE), null);");
             os.println("}");
             if (!isOkOnMainThread) {

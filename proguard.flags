@@ -5,7 +5,6 @@
 
 # used by reflection
 -keepclassmembers class net.scintill.ril_ofono.** {
-	void handle(org.ofono.**);
 	void onPropChange(org.ofono.**, java.lang.String, org.freedesktop.dbus.Variant);
 }
 

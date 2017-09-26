@@ -39,7 +39,11 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
     /*package*/ ModemModule(Modem modem) {
         mModem = modem;
 
-        mirrorProps(Modem.class, mModem, Modem.PropertyChanged.class, mModemProps);
+        initProps(mModemProps, Modem.class, mModem);
+    }
+
+    /*package*/ void handle(Modem.PropertyChanged s) {
+        handle(s, mModem, Modem.PropertyChanged.class, mModemProps, Modem.class);
     }
 
     @Override

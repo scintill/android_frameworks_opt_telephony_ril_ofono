@@ -18,7 +18,7 @@ public interface Modem extends DBusInterface
       }
    }
 
-  public Map<String,Variant> GetProperties();
+  public Map<String,Variant<?>> GetProperties();
   public void SetProperty(String property, Variant value);
 
 }

@@ -10,8 +10,8 @@ public interface Manager extends DBusInterface
    public static class ModemAdded extends DBusSignal
    {
       public final DBusInterface path;
-      public final Map<String,Variant> properties;
-      public ModemAdded(String pathStr, DBusInterface path, Map<String,Variant> properties) throws DBusException
+      public final Map<String,Variant<?>> properties;
+      public ModemAdded(String pathStr, DBusInterface path, Map<String,Variant<?>> properties) throws DBusException
       {
          super(pathStr, path, properties);
          this.path = path;

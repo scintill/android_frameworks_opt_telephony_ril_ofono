@@ -19,6 +19,8 @@
 
 package net.scintill.ril_ofono;
 
+import android.telephony.Rlog;
+
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.uicc.IccCardApplicationStatus;
 import com.android.internal.telephony.uicc.IccCardStatus;
@@ -42,21 +44,26 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     private RegistrantList mIccStatusChangedRegistrants;
 
+    private SimManager mSim;
     private final Map<String, Variant<?>> mSimProps = new HashMap<>();
-    private final SimFiles mSimFiles;
+    private final Map<String, Variant<?>> mMsgWaitingProps = new HashMap<>();
+    private SimFiles mSimFiles;
 
     private boolean mSimShownToUsersOnce = false;
 
     /*package*/ static final String SIM_APP_ID = "00";
 
-    /*package*/ SimModule(SimManager sim, MessageWaiting msgWaiting, RegistrantList iccStatusChangedRegistrants, RegistrantList iccRefreshRegistrants) {
-        Map<String, Variant<?>> msgWaitingProps = new HashMap<>();
-
+    /*package*/ SimModule(SimManager sim, RegistrantList iccStatusChangedRegistrants, RegistrantList iccRefreshRegistrants) {
+        Rlog.v(TAG, "SimModule()");
+        mSim = sim;
         mIccStatusChangedRegistrants = iccStatusChangedRegistrants;
-        mSimFiles = new SimFiles(mSimProps, msgWaitingProps, iccRefreshRegistrants);
+        mSimFiles = new SimFiles(mSimProps, mMsgWaitingProps, iccRefreshRegistrants);
 
-        mirrorProps(SimManager.class, sim, SimManager.PropertyChanged.class, mSimProps);
-        mirrorProps(MessageWaiting.class, msgWaiting, MessageWaiting.PropertyChanged.class, msgWaitingProps);
+        initProps(mSimProps, SimManager.class, mSim);
+    }
+
+    /*package*/ void handle(SimManager.PropertyChanged s) {
+        handle(s, mSim, SimManager.PropertyChanged.class, mSimProps, SimManager.class);
     }
 
     @Override
@@ -149,5 +156,24 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             notifyResultAndLog("icc status", mIccStatusChangedRegistrants, null, false);
         }
     };
+
+    MessageWaiting mMsgWaiting;
+
+    public MessageWaiting getMessageWaitingIface() {
+        return mMsgWaiting;
+    }
+
+    public void setMessageWaitingIface(MessageWaiting msgWaiting) {
+        mMsgWaiting = msgWaiting;
+        if (msgWaiting != null) {
+            initProps(mMsgWaitingProps, MessageWaiting.class, msgWaiting);
+        } else {
+            mMsgWaitingProps.clear();
+        }
+    }
+
+    /*package*/ void handle(MessageWaiting.PropertyChanged s) {
+        handle(s, mMsgWaiting, MessageWaiting.PropertyChanged.class, mMsgWaitingProps, MessageWaiting.class);
+    }
 
 }

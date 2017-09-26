@@ -55,11 +55,9 @@ import static net.scintill.ril_ofono.RilOfono.respondOk;
     // but are there any adverse effects of synchronizing so broadly?
 
     /*package*/ SmsModule(MessageManager messenger, RilOfono.RegistrantList smsRegistrants) {
-        mSmsRegistrants = smsRegistrants;
-
+        Rlog.v(TAG, "SmsModule()");
         mMessenger = messenger;
-        RilOfono.sInstance.registerDbusSignal(this, MessageManager.IncomingPdu.class, this);
-        RilOfono.sInstance.registerDbusSignal(this, org.ofono.Message.PropertyChanged.class, this);
+        mSmsRegistrants = smsRegistrants;
     }
 
     @Override
@@ -100,7 +98,7 @@ import static net.scintill.ril_ofono.RilOfono.respondOk;
         }
     }
 
-    public void handle(final MessageManager.IncomingPdu s) {
+    /*package*/ void handle(final MessageManager.IncomingPdu s) {
         try {
             SmsMessage msg = SmsMessage.createFromPdu(normalizePdu(s.pdu, s.tpdu_len), SmsConstants.FORMAT_3GPP);
             try {
@@ -134,7 +132,7 @@ import static net.scintill.ril_ofono.RilOfono.respondOk;
         }
     }
 
-    public void handle(org.ofono.Message.PropertyChanged s) {
+    /*package*/ void handle(org.ofono.Message.PropertyChanged s) {
         if (s.name.equals("State")) {
             String value = (String) s.value.getValue();
             if (value.equals("sent") || value.equals("failed")) {

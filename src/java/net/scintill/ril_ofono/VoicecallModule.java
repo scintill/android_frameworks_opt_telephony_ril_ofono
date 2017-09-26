@@ -61,13 +61,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private RegistrantList mCallStateRegistrants;
 
     /*package*/ VoicecallModule(VoiceCallManager callManager, RegistrantList callStateRegistrants) {
-        mCallStateRegistrants = callStateRegistrants;
-
+        Rlog.v(TAG, "VoicecallModule()");
         mCallManager = callManager;
-
-        RilOfono.sInstance.registerDbusSignal(this, VoiceCallManager.CallAdded.class, this);
-        RilOfono.sInstance.registerDbusSignal(this, VoiceCall.PropertyChanged.class, this);
-        RilOfono.sInstance.registerDbusSignal(this, VoiceCallManager.CallRemoved.class, this);
+        mCallStateRegistrants = callStateRegistrants;
     }
 
     @Override
@@ -138,7 +134,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private static final String PROPNAME_CALL_INDEX = "_RilOfono_CallIndex";
     private static final String PROPNAME_CALL_MOBORIG = "_RilOfono_CallMobileOriginating";
 
-    public void handle(VoiceCallManager.CallAdded s) {
+    /*package*/ void handle(VoiceCallManager.CallAdded s) {
         String callPath = s.path.getPath();
         Rlog.d(TAG, "handle CallAdded "+ callPath);
         Map<String, Variant<?>> newCallProps = new HashMap<>(s.properties);
@@ -148,13 +144,13 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         notifyResultAndLog("call state - added", mCallStateRegistrants, null, false);
     }
 
-    public void handle(VoiceCall.PropertyChanged s) {
+    /*package*/ void handle(VoiceCall.PropertyChanged s) {
         if (handle2dPropChange(mCallsProps, s.getPath(), VoiceCall.class, s.name, s.value)) {
             runOnMainThreadDebounced(mFnNotifyCallStateChanged, 200);
         }
     }
 
-    public void handle(VoiceCallManager.CallRemoved s) {
+    /*package*/ void handle(VoiceCallManager.CallRemoved s) {
         String callPath = s.path.getPath();
         Rlog.d(TAG, "handle CallRemoved");
         int callIndex = getProp(mCallsProps.get(callPath), PROPNAME_CALL_INDEX, -1);

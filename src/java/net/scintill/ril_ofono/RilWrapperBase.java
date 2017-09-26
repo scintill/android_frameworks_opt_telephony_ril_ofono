@@ -38,25 +38,16 @@ public abstract class RilWrapperBase extends BaseCommands {
 
     protected static final String TAG = RilOfono.TAG;
 
-    /*package*/ boolean mOfonoIsUp = false;
-
-    /*package*/ RilMiscInterface mMiscModule;
-    /*package*/ RilNetworkRegistrationInterface mNetworkRegistrationModule;
-    /*package*/ RilModemInterface mModemModule;
-    /*package*/ RilSmsInterface mSmsModule;
-    /*package*/ RilSimInterface mSimModule;
-    /*package*/ RilVoicecallInterface mVoicecallModule;
-    /*package*/ RilDatacallInterface mDatacallModule;
-    /*package*/ RilSupplementaryServicesInterface mSupplementaryServicesModule;
-
     /*package*/ final Object mStateMonitor = super.mStateMonitor;
+
+    protected final RilOfono mRilOfono;
 
     protected static android.os.Message sCurrentMsg;
 
     protected RilWrapperBase(Context ctx) {
         super(ctx);
         mPhoneType = NO_PHONE;
-        new RilOfono(this);
+        mRilOfono = new RilOfono(this);
     }
 
     /*package*/ void updateRilConnection(int version) {
@@ -161,15 +152,6 @@ public abstract class RilWrapperBase extends BaseCommands {
             Rlog.v(TAG, caller+" will return later");
         } else {
             RilOfono.respondOk(caller, msg, ret);
-        }
-    }
-
-    protected static void logUncaughtException(String caller, Throwable t) {
-        if (t instanceof DBus.Error.ServiceUnknown || t instanceof DBus.Error.UnknownMethod) {
-            // make these briefer, as they're somewhat expected if oFono or one of its interfaces is not registered
-            Rlog.e(TAG, "Uncaught exception in " + caller + ": " + privStr(t.getMessage()));
-        } else {
-            Rlog.e(TAG, "Uncaught exception in " + caller, privExc(t));
         }
     }
 

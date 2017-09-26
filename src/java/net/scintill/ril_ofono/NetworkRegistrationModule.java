@@ -47,6 +47,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 /*package*/ class NetworkRegistrationModule extends PropManager implements RilNetworkRegistrationInterface {
 
     private static final String TAG = RilOfono.TAG;
+    private NetworkRegistration mNetReg;
     private final Map<String, Variant<?>> mNetRegProps = new HashMap<>();
 
     private final RegistrantList mVoiceNetworkStateRegistrants;
@@ -54,11 +55,17 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final RilOfono.RegistrantList mSignalStrengthRegistrants;
 
     /*package*/ NetworkRegistrationModule(NetworkRegistration netReg, RegistrantList voiceNetworkStateRegistrants, RegistrantList voiceRadioTechChangedRegistrants, RegistrantList signalStrengthRegistrants) {
+        Rlog.v(TAG, "NetworkRegistrationModule()");
+        mNetReg = netReg;
         mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
         mVoiceRadioTechChangedRegistrants = voiceRadioTechChangedRegistrants;
         mSignalStrengthRegistrants = signalStrengthRegistrants;
 
-        mirrorProps(NetworkRegistration.class, netReg, NetworkRegistration.PropertyChanged.class, mNetRegProps);
+        initProps(mNetRegProps, NetworkRegistration.class, netReg);
+    }
+
+    /*package*/ void handle(NetworkRegistration.PropertyChanged s) {
+        handle(s, mNetReg, NetworkRegistration.PropertyChanged.class, mNetRegProps, NetworkRegistration.class);
     }
 
     @Override
@@ -82,7 +89,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
                     ""+state.ts27007Creg,
                     getProp(mNetRegProps, "LocationAreaCode", "-1"),
                     getProp(mNetRegProps, "CellId", "-1"),
-                    ""+getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown).serviceStateInt,
+                    ""+getProp(mNetRegProps, "Technology", OfonoNetworkTechnology.none).serviceStateInt,
             });
         }
     }
@@ -117,7 +124,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     @OkOnMainThread
     public Object getNetworkSelectionMode() {
         String mode = getProp(mNetRegProps, "Mode", (String)null);
-        if (mode == null) {
+        if (mode == null) { // TODO remove this?
             Rlog.w(TAG, "getNetworkSelectionMode(): oFono is not reporting the mode; returning CommandException");
             throw new CommandException(GENERIC_FAILURE);
         } else {
@@ -142,16 +149,9 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         }
     };
 
-    /*package*/ final DatacallModule.VoiceRadioTechnologyGetter mVoiceRadioTechnologyGetter = new DatacallModule.VoiceRadioTechnologyGetter() {
-        @Override
-        public OfonoNetworkTechnology getVoiceRadioTechnology() {
-            return getProp(mNetRegProps, "Technology", OfonoNetworkTechnology._unknown);
-        }
-    };
-
     private Object getVoiceRadioTechnologyImpl() {
         // TODO is this really the right value?
-        return new int[]{ mVoiceRadioTechnologyGetter.getVoiceRadioTechnology().serviceStateInt };
+        return new int[]{ getProp(mNetRegProps, "Technology", OfonoNetworkTechnology.none).serviceStateInt };
     }
 
     enum OfonoRegistrationState {
@@ -168,7 +168,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     enum OfonoNetworkTechnology {
         gsm(RIL_RADIO_TECHNOLOGY_GSM), edge(RIL_RADIO_TECHNOLOGY_EDGE), umts(RIL_RADIO_TECHNOLOGY_UMTS),
         hspa(RIL_RADIO_TECHNOLOGY_HSPA), lte(RIL_RADIO_TECHNOLOGY_LTE),
-        _unknown(RIL_RADIO_TECHNOLOGY_UNKNOWN), none(RIL_RADIO_TECHNOLOGY_UNKNOWN),
+        none(RIL_RADIO_TECHNOLOGY_UNKNOWN),
         gprs(RIL_RADIO_TECHNOLOGY_GPRS), hsdpa(RIL_RADIO_TECHNOLOGY_HSDPA), hsupa(RIL_RADIO_TECHNOLOGY_HSUPA),
         ;
         public int serviceStateInt;

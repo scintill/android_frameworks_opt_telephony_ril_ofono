@@ -2,6 +2,8 @@
 # the emoji I currently put into the operator name wreaks havoc...
 ENSAFENBINARY="cat -v | sed s/\\\^M$//"
 COMMONARGS="-cS mylogcat"
+FORMAT="time"
+#FORMAT="threadtime"
 
 exec multitail \
 	-M 0 \
@@ -17,13 +19,13 @@ exec multitail \
 	-o 'cs_re:red,,inverse:Caused by:' \
 	-o 'cs_re:white:^[0-9 :.-]*' \
 	-o 'cs_re:cyan::' \
-	-o 'cs_re_s:red,,inverse:^[0-9 :.-]*(F)/[^:]*: (.*)$' \
-	-o 'cs_re_s:red:^[0-9 :.-]*(E)/[^:]*: (.*)$' \
+	-o 'cs_re_s:red,,inverse:^[0-9 :.-]*(F).[^:]*: (.*)$' \
+	-o 'cs_re_s:red:^[0-9 :.-]*(E).[^:]*: (.*)$' \
 	-o 'cs_re_s:yellow:^[0-9 :.-]*(W).[^:]*: (.*)$' \
-	-o 'cs_re_s:green:^[0-9 :.-]*(V)/[^:]*: (.*)$' \
-	-o 'cs_re_s:cyan:^[0-9 :.-]*(I)/[^:]*: (.*)$' \
+	-o 'cs_re_s:green:^[0-9 :.-]*(V).[^:]*: (.*)$' \
+	-o 'cs_re_s:cyan:^[0-9 :.-]*(I).[^:]*: (.*)$' \
 	-o titlebar:logcat \
-	$COMMONARGS -t radio:RilOfono               -l "adb logcat -v time -b radio -s RilOfono:* | $ENSAFENBINARY" \
-	$COMMONARGS -t radio:ofonod                 -l "adb logcat -v time -b radio -s ofonod:* | $ENSAFENBINARY" \
-	$COMMONARGS -t 'radio:not(RilOfono,ofonod)' -l "adb logcat -v time -b radio RilOfono:S,ofonod:s | $ENSAFENBINARY" \
-	$COMMONARGS -t main                         -l "adb logcat -v time | $ENSAFENBINARY" \
+	$COMMONARGS -t radio:RilOfono               -l "adb logcat -v $FORMAT -b radio -s RilOfono:* | $ENSAFENBINARY" \
+	$COMMONARGS -t radio:ofonod                 -l "adb logcat -v $FORMAT -b radio -s ofonod:* | $ENSAFENBINARY" \
+	$COMMONARGS -t 'radio:not(RilOfono,ofonod)' -l "adb logcat -v $FORMAT -b radio RilOfono:S,ofonod:s | $ENSAFENBINARY" \
+	$COMMONARGS -t main                         -l "adb logcat -v $FORMAT | $ENSAFENBINARY" \

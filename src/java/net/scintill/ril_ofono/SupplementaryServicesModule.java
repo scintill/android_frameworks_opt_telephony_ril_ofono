@@ -19,6 +19,8 @@
 
 package net.scintill.ril_ofono;
 
+import android.telephony.Rlog;
+
 import org.freedesktop.dbus.Variant;
 import org.ofono.Pair;
 import org.ofono.SupplementaryServices;
@@ -34,9 +36,9 @@ import static com.android.internal.telephony.CommandsInterface.USSD_MODE_NOT_SUP
     private final RilOfono.RegistrantList mUSSDRegistrants;
 
     /*package*/ SupplementaryServicesModule(SupplementaryServices supplSvcs, RilOfono.RegistrantList USSDRegistrant) {
-        mUSSDRegistrants = USSDRegistrant;
-
+        Rlog.v(TAG, "SupplementaryServicesModule()");
         mSupplSvcs = supplSvcs;
+        mUSSDRegistrants = USSDRegistrant;
     }
 
     @Override
