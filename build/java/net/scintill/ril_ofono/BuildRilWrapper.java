@@ -76,7 +76,7 @@ import java.util.List;
 
             os.println(getMethodSignature(commandsIfaceMethod) + " {");
             String messageParamName = "msg";
-            Class[] paramTypes = commandsIfaceMethod.getParameterTypes();
+            Class<?>[] paramTypes = commandsIfaceMethod.getParameterTypes();
             //os.printf("Rlog.v(TAG, \"%s \" + (%s != null ? %s.what : null) + \" \" + (%s != null ? %s.getTarget() : \"\"));%n", commandsIfaceMethod.getName(), messageParamName, messageParamName, messageParamName, messageParamName);
             boolean isAsync = paramTypesExcludingMessage.length != paramTypes.length;
             boolean isOkOnMainThread = moduleMethod.isAnnotationPresent(OkOnMainThread.class);
@@ -175,7 +175,7 @@ import java.util.List;
             RilOfono.class,
     };
 
-    private static Class<?> findModuleClass(Method commandsIfaceMethod, Class[] paramTypesExcludingMessage) {
+    private static Class<?> findModuleClass(Method commandsIfaceMethod, Class<?>[] paramTypesExcludingMessage) {
         for (Class<?> moduleClass : moduleClasses) {
             try {
                 moduleClass.getMethod(commandsIfaceMethod.getName(), paramTypesExcludingMessage);

@@ -60,10 +60,6 @@ import org.ofono.SupplementaryServices;
 import org.ofono.VoiceCall;
 import org.ofono.VoiceCallManager;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -1234,14 +1230,4 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
             super(first, second);
         }
     }
-}
-
-// mostly a tag type to remind me use this correctly (only construct one for each purpose)
-/*package*/ abstract class DebouncedRunnable implements Runnable {}
-
-// does not need to be available at true runtime, just when BuildRilWrapper runs, but
-// I'm not sure that can be done without spelunking into classfiles
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD})
-/*package*/ @interface OkOnMainThread {
 }
