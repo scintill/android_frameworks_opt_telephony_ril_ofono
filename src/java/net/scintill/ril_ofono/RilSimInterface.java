@@ -31,4 +31,6 @@ interface RilSimInterface {
 
     Object iccIO(int command, int fileid, String path, int p1, int p2, int p3, String data, String pin2);
 
+    Object iccOpenLogicalChannel(String AID);
+
 }

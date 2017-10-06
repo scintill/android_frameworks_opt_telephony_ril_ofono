@@ -1089,7 +1089,7 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
     // things I noticed BaseCommands overrides but has an empty implementation we might need to override:
     // getModemCapability(),
     // setUiccSubscription(), requestShutdown(),
-    // iccOpenLogicalChannel(), iccCloseLogicalChannel(), iccTransmitApduLogicalChannel(),
+    // iccCloseLogicalChannel(), iccTransmitApduLogicalChannel(),
     // iccTransmitApduBasicChannel(), getAtr(), setLocalCallHold()
 
     private <T extends DBusInterface> T getOfonoInterface(Class<T> tClass) {

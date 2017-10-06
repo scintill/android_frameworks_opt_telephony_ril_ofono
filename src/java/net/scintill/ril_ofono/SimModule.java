@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
+import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 import static net.scintill.ril_ofono.RilOfono.RegistrantList;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
@@ -174,6 +175,12 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
 
     /*package*/ void handle(MessageWaiting.PropertyChanged s) {
         handle(s, mMsgWaiting, MessageWaiting.PropertyChanged.class, mMsgWaitingProps, MessageWaiting.class);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object iccOpenLogicalChannel(String AID) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
 }
