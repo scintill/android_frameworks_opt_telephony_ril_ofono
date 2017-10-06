@@ -22,6 +22,7 @@ package net.scintill.ril_ofono;
 import android.telephony.Rlog;
 
 import com.android.internal.telephony.CommandException;
+import com.android.internal.telephony.RadioCapability;
 
 import org.freedesktop.dbus.Variant;
 import org.ofono.Modem;
@@ -99,6 +100,30 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
     @Override
     @OkOnMainThread
     public Object getModemActivityInfo() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object requestShutdown() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object setUiccSubscription(int appIndex, boolean activate) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object getRadioCapability() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object setRadioCapability(RadioCapability rc) {
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 

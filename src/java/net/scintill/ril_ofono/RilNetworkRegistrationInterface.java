@@ -31,4 +31,10 @@ interface RilNetworkRegistrationInterface {
 
     Object getVoiceRadioTechnology();
 
+    Object startLceService(int reportIntervalMs, boolean pullMode);
+
+    Object stopLceService();
+
+    Object pullLceData();
+
 }

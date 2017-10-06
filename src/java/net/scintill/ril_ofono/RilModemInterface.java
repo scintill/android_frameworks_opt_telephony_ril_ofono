@@ -19,6 +19,8 @@
 
 package net.scintill.ril_ofono;
 
+import com.android.internal.telephony.RadioCapability;
+
 interface RilModemInterface {
 
     Object getBasebandVersion();
@@ -34,5 +36,13 @@ interface RilModemInterface {
     Object setMaxTransmitPower(int state);
 
     Object getModemActivityInfo();
+
+    Object requestShutdown();
+
+    Object setUiccSubscription(int appIndex, boolean activate);
+
+    Object getRadioCapability();
+
+    Object setRadioCapability(RadioCapability rc);
 
 }

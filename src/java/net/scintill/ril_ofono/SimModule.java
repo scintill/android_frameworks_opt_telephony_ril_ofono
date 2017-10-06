@@ -183,4 +183,34 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
+    @Override
+    @OkOnMainThread
+    public Object iccOpenLogicalChannel(String AID, byte p2) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object iccCloseLogicalChannel(int channel) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object iccTransmitApduLogicalChannel(int channel, int cla, int instruction, int p1, int p2, int p3, String data) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object iccTransmitApduBasicChannel(int cla, int instruction, int p1, int p2, int p3, String data) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object getAtr() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
 }

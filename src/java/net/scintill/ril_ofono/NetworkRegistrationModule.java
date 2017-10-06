@@ -40,6 +40,7 @@ import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_LTE;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UMTS;
 import static android.telephony.ServiceState.RIL_RADIO_TECHNOLOGY_UNKNOWN;
 import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;
+import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 import static net.scintill.ril_ofono.RilOfono.RegistrantList;
 import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
@@ -184,6 +185,24 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
             }
             return null;
         }
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object startLceService(int reportIntervalMs, boolean pullMode) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object stopLceService() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object pullLceData() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
 }

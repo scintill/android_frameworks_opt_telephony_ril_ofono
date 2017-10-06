@@ -24,6 +24,7 @@ import android.os.Registrant;
 import android.telephony.Rlog;
 
 import com.android.internal.telephony.BaseCommands;
+import com.android.internal.telephony.CommandException;
 
 import org.freedesktop.DBus;
 
@@ -34,7 +35,7 @@ import static net.scintill.ril_ofono.RilOfono.notifyResultAndLog;
 import static net.scintill.ril_ofono.RilOfono.privExc;
 import static net.scintill.ril_ofono.RilOfono.privStr;
 
-public abstract class RilWrapperBase extends BaseCommands {
+public abstract class RilWrapperBase extends SaneBaseCommands {
 
     protected static final String TAG = RilOfono.TAG;
 
@@ -104,6 +105,22 @@ public abstract class RilWrapperBase extends BaseCommands {
         synchronized (mStateMonitor) {
             return super.getRadioState();
         }
+    }
+
+    ///////////////////////////
+    // Synchronous methods
+    ///////////////////////////
+    // (Currently BuildRilWrapper doesn't support them. If we have real implementations,
+    // it would probably be better to fix that and put them in appropriate modules.)
+
+    @Override
+    public void setLocalCallHold(boolean lchStatus) {
+        throw new CommandException(CommandException.Error.REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    public void testingEmergencyCall() {
+        throw new CommandException(CommandException.Error.REQUEST_NOT_SUPPORTED);
     }
 
     ///////////////////////////

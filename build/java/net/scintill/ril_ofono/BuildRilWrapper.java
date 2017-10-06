@@ -81,7 +81,7 @@ import java.util.List;
             boolean isAsync = paramTypesExcludingMessage.length != paramTypes.length;
             boolean isOkOnMainThread = moduleMethod.isAnnotationPresent(OkOnMainThread.class);
             if (!isAsync) {
-                throw new RuntimeException("is not async! generation of synchronous methods not implemented");
+                throw new RuntimeException(moduleMethod+" is not async! generation of synchronous methods not implemented");
             }
 
             String moduleVarName = "mRilOfono.m"+(moduleClass != RilOfono.class ? moduleClass.getSimpleName() : "MiscModule");

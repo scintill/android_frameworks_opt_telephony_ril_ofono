@@ -33,4 +33,16 @@ interface RilSimInterface {
 
     Object iccOpenLogicalChannel(String AID);
 
+    Object iccOpenLogicalChannel(String AID, byte p2);
+
+    Object iccCloseLogicalChannel(int channel);
+
+    Object iccTransmitApduLogicalChannel(int channel, int cla, int instruction,
+                                                       int p1, int p2, int p3, String data);
+
+    Object iccTransmitApduBasicChannel(int cla, int instruction, int p1, int p2,
+                                                     int p3, String data);
+
+    Object getAtr();
+
 }
