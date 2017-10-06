@@ -55,6 +55,7 @@ Nothing is thoroughly tested nor tried on a broad selection of hardware/networks
 * make dbus exceptions be checked exceptions, so the compiler will find them and I have to handle them
 * crashes in airplane mode trying to query properties on probably not-up interfaces
 * remove anonymous auth from dbus.conf (currently there to ease debugging; not needed for the RIL code to connect properly)
+* better fix for org.ofono.Message proguard kept class? (check the commit that added this to see what I'm talking about)
 
 # Code review
 

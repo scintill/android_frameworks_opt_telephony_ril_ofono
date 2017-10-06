@@ -52,7 +52,7 @@ import java.util.List;
         os.println("import static net.scintill.ril_ofono.RilOfono.runOnDbusThread;");
         os.println("import static com.android.internal.telephony.CommandException.Error.GENERIC_FAILURE;");
 
-        os.println("/*package*/ class RilWrapper extends RilWrapperBase {");
+        os.println("public class RilWrapper extends RilWrapperBase {");
 
         os.println("public RilWrapper(android.content.Context ctx, int networkMode, int cdmaSubscription, Integer instanceId) {");
         os.println("super(ctx);");

@@ -23,5 +23,9 @@
 	<init>(...);
 }
 
+# dbus lib requires signals to have enclosing class; this one would be dropped otherwise
+-keep class org.ofono.Message {
+}
+
 -verbose
 #-printseeds
