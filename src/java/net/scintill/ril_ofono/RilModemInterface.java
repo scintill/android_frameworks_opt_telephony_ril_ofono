@@ -29,4 +29,10 @@ interface RilModemInterface {
 
     Object setRadioPower(boolean on);
 
+    Object supplyNetworkDepersonalization(String netpin, String type);
+
+    Object setMaxTransmitPower(int state);
+
+    Object getModemActivityInfo();
+
 }

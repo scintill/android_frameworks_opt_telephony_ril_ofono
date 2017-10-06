@@ -21,12 +21,15 @@ package net.scintill.ril_ofono;
 
 import android.telephony.Rlog;
 
+import com.android.internal.telephony.CommandException;
+
 import org.freedesktop.dbus.Variant;
 import org.ofono.Modem;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.android.internal.telephony.CommandException.Error.REQUEST_NOT_SUPPORTED;
 import static com.android.internal.telephony.CommandsInterface.RadioState;
 
 /*package*/ class ModemModule extends PropManager implements RilModemInterface {
@@ -79,6 +82,24 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
             final boolean online = (Boolean) value.getValue();
             RilOfono.sInstance.setRadioState(online ? RadioState.RADIO_ON : RadioState.RADIO_OFF);
         }
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object supplyNetworkDepersonalization(String netpin, String type) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object setMaxTransmitPower(int state) {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
+    }
+
+    @Override
+    @OkOnMainThread
+    public Object getModemActivityInfo() {
+        throw new CommandException(REQUEST_NOT_SUPPORTED);
     }
 
 }
