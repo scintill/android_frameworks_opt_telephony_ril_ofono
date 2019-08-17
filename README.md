@@ -18,7 +18,7 @@ The goal of this project is to write an Android RIL on top of [oFono](https://01
 1. Build from Replicant 6 checkout with [this manifest](https://github.com/scintill/android/tree/replicant-6.0). (My device is `serranoltexx`, but this manifest will probably work with any Serrano device, or even any Samsung MSM8930-based device if you add its device tree from LineageOS.)
 1. Running
 	* In theory, all you need to do is flash the build and boot, but in reality it currently takes some fiddling to get the modem booted.
-		* Signs of success: rmtfsd logging in the main log about file requests; ofonod logging in the radio log about QMI calls; kernel log does *not* have messages about the modem continually resetting.
+		* Signs of success: rmtfsd logging in the main log about file requests; "apr_tal:Modem Is Up" in dmesg, ofonod logging in the radio log about QMI calls; kernel log does *not* have messages about the modem continually resetting.
 		* Try writing "20" to /sys/devices/virtual/smdpkt/smdcntl0/open_timeout . Once you get it going, write the normal value "0".
 		* You might need to `restart ofonod` as root, after the modem and rmtfsd appear to be talking.
 		* You might try writing "1" to /sys/kernel/debug/modem_debug/reset_modem to reboot the modem if things seem stuck in a non-working state.
