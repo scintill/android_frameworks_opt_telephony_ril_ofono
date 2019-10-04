@@ -1,0 +1,30 @@
+service dbus /system/bin/dbus-daemon --system --nofork
+    class main
+    socket dbus stream 0660 root radio
+    user radio
+    group radio
+
+# TODO OFONO_QMI_DEBUG and maybe --debug shouldn't be on in production
+# started after mdm9k-boot
+service ofonod /system/bin/ofonod --nodetach --debug
+    disabled
+    user radio
+    group radio
+    setenv OFONO_GOBI_DEVICE /dev/cdc-wdm2
+    setenv OFONO_GOBI_IFACE rmnet0
+    setenv OFONO_QMI_DEBUG 1
+
+# started after mdm9k-boot
+service mdm9k-efsd /system/bin/logwrapper /system/bin/mdm9k-efsd
+    disabled
+    class core
+    user system
+    group radio
+
+# TODO what if the modem needs to be booted again?
+# TODO sleep is hacky. without a delay, ofonod comes up in "pre sim" mode. could be a bug on that side exacerbated by racy init.
+service mdm9k-boot /system/bin/sh -c "logwrapper /system/bin/mdm9k-boot && start mdm9k-efsd && sleep 40 && start ofonod"
+    oneshot
+    class core
+    user system
+    group radio
