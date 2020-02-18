@@ -53,3 +53,12 @@ include $(CLEAR_VARS)
 
 	LOCAL_PROGUARD_FLAG_FILES = proguard.flags
 include $(BUILD_PACKAGE)
+
+# Build rild lib (for native code that needs rild privs)
+include $(CLEAR_VARS)
+    LOCAL_MODULE := librilofono_rild
+    LOCAL_SRC_FILES := \
+        src/c/librilofono_rild.c
+    LOCAL_SHARED_LIBRARIES := \
+        libnetutils
+include $(BUILD_SHARED_LIBRARY)

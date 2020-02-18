@@ -48,7 +48,7 @@ public abstract class RilWrapperBase extends SaneBaseCommands {
     protected RilWrapperBase(Context ctx) {
         super(ctx);
         mPhoneType = NO_PHONE;
-        mRilOfono = new RilOfono(this);
+        mRilOfono = new RilOfono(this, ctx);
     }
 
     /*package*/ void updateRilConnection(int version) {

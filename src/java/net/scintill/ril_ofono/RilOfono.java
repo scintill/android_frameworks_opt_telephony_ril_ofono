@@ -89,6 +89,7 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
     private RilWrapperBase mRilWrapper;
     private Handler mDbusHandler;
     private Handler mMainHandler;
+    private NativeRild mNativeRild;
 
     private DBusConnection mDbus;
 
@@ -96,7 +97,7 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
 
     /*package*/ static RilOfono sInstance;
 
-    /*package*/ RilOfono(final RilWrapperBase rilWrapper) {
+    /*package*/ RilOfono(final RilWrapperBase rilWrapper, Context ctxt) {
         sInstance = this;
         Rlog.d(TAG, "RilOfono "+BUILD_NUMBER+" starting");
 
@@ -106,6 +107,8 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
         dbusThread.start();
         mMainHandler = new Handler(new EmptyHandlerCallback());
         mDbusHandler = new Handler(dbusThread.getLooper(), new EmptyHandlerCallback());
+
+        mNativeRild = new NativeRild(ctxt);
 
         runOnDbusThread(new Runnable() {
             @Override
@@ -279,7 +282,8 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
                     getOfonoInterface(ConnectionManager.class),
                     getOfonoInterface(NetworkRegistration.class),
                     mRilWrapper.mDataNetworkStateRegistrants, mRilWrapper.mVoiceNetworkStateRegistrants,
-                    INetworkManagementService.Stub.asInterface(ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE))
+                    INetworkManagementService.Stub.asInterface(ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE)),
+                    mNativeRild
             );
         }
     }
@@ -351,9 +355,9 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
     }
 
     private void handle(DBusSignal s) {
-        // take this monitor so that any modules needed by this signal are available
         boolean handled = false;
 
+        // take this monitor so that any modules needed by this signal are available
         synchronized (updateModulesMonitor) {
             if (s instanceof MessageManager.IncomingPdu && mSmsModule != null) {
                 mSmsModule.handle((MessageManager.IncomingPdu) s);
@@ -1100,12 +1104,12 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
         }
     }
 
-    private static final Set<String> quietRespondOk = new HashSet<>(Arrays.asList(new String[]{
+    private static final Set<String> quietRespondOk = new HashSet<>(Arrays.asList(
         "getSignalStrength", "getBasebandVersion", "getIMSIForApp", "getIccCardStatus", "iccIO", "iccIOForApp"
-    }));
-    private static final Set<String> quietRespondExc = new HashSet<>(Arrays.asList(new String[]{
-        "setCdmaBroadcastActivation", "setCdmaBroadcastConfig",
-    }));
+    ));
+    private static final Set<String> quietRespondExc = new HashSet<>(Arrays.asList(
+        "setCdmaBroadcastActivation", "setCdmaBroadcastConfig", "setGsmBroadcastConfig"
+    ));
 
     /*package*/ static void respondOk(String caller, Message response, Object o) {
         boolean quiet = quietRespondOk.contains(caller);
@@ -1199,13 +1203,11 @@ import static com.android.internal.telephony.CommandsInterface.RadioState;
     }
 
     /*package*/ static String privStr(Object o) {
-        //noinspection ConstantConditions
         return LOG_POTENTIALLY_SENSITIVE_INFO ? String.valueOf(o) : "XXXXX";
     }
 
     /*package*/ static Throwable privExc(Throwable t) {
         // TODO find a way to pass back the safe parts instead of null?
-        //noinspection ConstantConditions
         return LOG_POTENTIALLY_SENSITIVE_INFO ? t : null;
     }
 

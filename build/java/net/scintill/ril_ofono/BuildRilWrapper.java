@@ -86,6 +86,9 @@ import java.util.List;
 
             String moduleVarName = "mRilOfono.m"+(moduleClass != RilOfono.class ? moduleClass.getSimpleName() : "MiscModule");
 
+            /*if (commandsIfaceMethod.getName().equals("setupDataCall")) {
+                os.printf("Rlog.i(\"%s\", \"%s\", new Exception());", "RilOfonoTrace", commandsIfaceMethod.getName());
+            }*/
             os.printf("if (%s == null) { respondExc(\"%s [nomodule]\", %s, new CommandException(GENERIC_FAILURE), null); return; }%n",
                     moduleVarName,
                     commandsIfaceMethod.getName(), messageParamName);

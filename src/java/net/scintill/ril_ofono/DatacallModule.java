@@ -19,8 +19,7 @@
 
 package net.scintill.ril_ofono;
 
-import android.net.InterfaceConfiguration;
-import android.net.LinkAddress;
+import android.annotation.Nullable;
 import android.net.NetworkUtils;
 import android.os.INetworkManagementService;
 import android.os.RemoteException;
@@ -70,6 +69,7 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private ConnectionManager mConnMan;
     private NetworkRegistration mNetReg;
     private INetworkManagementService mNetworkManagementService;
+    private NativeRild mNativeRild;
     private RegistrantList mDataNetworkStateRegistrants;
     private RegistrantList mVoiceNetworkStateRegistrants;
 
@@ -78,16 +78,23 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final Map<String, Map<String, Variant<?>>> mConnectionsProps = new HashMap<>();
     private final Map<String, String> mLastInterface = new HashMap<>();
 
-    DatacallModule(ConnectionManager connMan, NetworkRegistration netReg, RegistrantList dataNetworkStateRegistrants, RegistrantList voiceNetworkStateRegistrants, INetworkManagementService networkManagementService) {
+    DatacallModule(ConnectionManager connMan, NetworkRegistration netReg, RegistrantList dataNetworkStateRegistrants, RegistrantList voiceNetworkStateRegistrants, INetworkManagementService networkManagementService, NativeRild nativeRild) {
         Rlog.v(TAG, "DatacallModule()");
         mConnMan = connMan;
         mNetReg = netReg;
         mDataNetworkStateRegistrants = dataNetworkStateRegistrants;
         mVoiceNetworkStateRegistrants = voiceNetworkStateRegistrants;
         mNetworkManagementService = networkManagementService;
+        mNativeRild = nativeRild;
 
         initProps(mConnManProps, ConnectionManager.class, mConnMan);
         initProps(mNetRegProps, NetworkRegistration.class, mNetReg);
+
+        // initialize current connections
+        for (StructPathAndProps p : mConnMan.GetContexts()) {
+            mConnectionsProps.put(p.path.getPath(), new HashMap<>(p.props)); // copy because DBus's is immutable
+        }
+        getDataCallListImpl(); // XXX populate mLastInterface by side-effect
     }
 
     /*package*/ void handle(ConnectionManager.PropertyChanged s) {
@@ -102,13 +109,24 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     @Override
     @OkOnMainThread
     public Object getDataRegistrationState() {
+        // XXX Hack. Somehow we are not getting this prop updated correctly.
+        // oFono source has a comment about LTE effectively is always attached, so let's follow that.
+        boolean attached =
+            isLte() || // TODO if LTE, check registered?
+            getProp(mConnManProps, "Attached", Boolean.FALSE);
+
         return new String[] {
             // see e.g. GsmServiceStateTracker for the values and offsets, though some appear unused
-            ""+(getProp(mConnManProps, "Attached", Boolean.FALSE) ? OfonoRegistrationState.registered : OfonoRegistrationState.unregistered).ts27007Creg,
+            ""+(attached ? OfonoRegistrationState.registered : OfonoRegistrationState.unregistered).ts27007Creg,
             "", "", // unused?
             ""+getBearerTechnology().serviceStateInt,
         };
     }
+
+    private boolean isLte() {
+        return getBearerTechnology().equals(OfonoNetworkTechnology.lte);
+    }
+
 
     @Override
     @OkOnMainThread
@@ -140,15 +158,43 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         apn.authType = Integer.parseInt(authType);
         apn.protocol = protocol;
 
-        Path ctxPath = mConnMan.AddContext("internet");
-        ConnectionContext ctx = RilOfono.sInstance.getOfonoInterface(ConnectionContext.class, ctxPath.getPath());
-        try {
-            apn.setOnContext(ctx);
-            setContextActive(ctx, true);
-        } catch (NotAttached e) {
-            throw new CommandException(OP_NOT_ALLOWED_BEFORE_REG_NW);
+        String ctxPath;
+        ConnectionContext ctx;
+        if (!isLte()) {
+            mConnMan.DeactivateAll();
+            mConnMan.SetProperty("Powered", new Variant<>(false));
+            mConnMan.ResetContexts();
+            mConnMan.SetProperty("Powered", new Variant<>(true));
+            ctxPath = mConnMan.AddContext("internet").getPath();
+            ctx = RilOfono.sInstance.getOfonoInterface(ConnectionContext.class, ctxPath);
+            try {
+                apn.setOnContext(ctx);
+                setContextActive(ctx, true);
+            } catch (NotAttached e) {
+                throw new CommandException(OP_NOT_ALLOWED_BEFORE_REG_NW);
+            }
+        } else {
+            ctxPath = findDefaultContext();
+            if (ctxPath == null) {
+                Rlog.w(TAG, "no connection context available in setupDataCall(). not registered?");
+                throw new CommandException(OP_NOT_ALLOWED_BEFORE_REG_NW);
+            }
+            ctx = RilOfono.sInstance.getOfonoInterface(ConnectionContext.class, ctxPath);
+            // don't modify the context, just return it so the caller can query/watch its configuration
         }
-        return new PrivResponseOb(getDataCallResponse(ctxPath.getPath(), ctx.GetProperties()));
+        return new PrivResponseOb(getDataCallResponse(ctxPath, ctx.GetProperties()));
+    }
+
+    @Nullable
+    private String findDefaultContext() {
+        for (Map.Entry<String, Map<String, Variant<?>>> connectionPropsEntry : mConnectionsProps.entrySet()) {
+            String dbusPath = connectionPropsEntry.getKey();
+            Map<String, Variant<?>> props = connectionPropsEntry.getValue();
+            if (getProp(props, "AccessPointName", "").equals("automatic")) { // TODO use Name instead? it's not available for some reason
+                return dbusPath;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -190,11 +236,13 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
         dcr.dnses = getProp(ipSettings, "DomainNameServers", new String[0]);
         dcr.gateways = singleStringToArray(getProp(ipSettings, "Gateway", ""));
         dcr.mtu = PhoneConstants.UNSET_MTU;
+        //Rlog.d(TAG, "getDataCallResponse "+dbusPath+" "+props+" -> "+dcr, new Exception());
         return dcr;
     }
 
-    private List<DataCallResponse> getDataCallListImpl() {
-        List<DataCallResponse> list = new ArrayList<>();
+    // something in the framework seems to assume ArrayList, so make it part of our signature here
+    private ArrayList<DataCallResponse> getDataCallListImpl() {
+        ArrayList<DataCallResponse> list = new ArrayList<>();
         //Rlog.d(TAG, "mConnectionsProps="+privStr(mConnectionsProps));
         for (Map.Entry<String, Map<String, Variant<?>>> connectionPropsEntry : mConnectionsProps.entrySet()) {
             String dbusPath = connectionPropsEntry.getKey();
@@ -299,27 +347,27 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     private final DebouncedRunnable mFnNotifyDataNetworkState = new DebouncedRunnable() {
         @Override
         public void run() {
-            Object calls = getDataCallListImpl();
-            notifyResultAndLog("data netstate", mDataNetworkStateRegistrants, calls, true);
+            notifyResultAndLog("data netstate", mDataNetworkStateRegistrants, getDataCallListImpl(), true);
 
-            // This one seems out-of-place, but as far as I can tell it's the way to get
+            // XXX This one seems out-of-place, but as far as I can tell it's the way to get
             // ServiceStateTracker to poll us and discover our data registration state.
             notifyResultAndLog("voice netstate (because of data netstate)", mVoiceNetworkStateRegistrants, null, false);
         }
     };
 
+    // TODO it's IPV4 only
     private boolean onContextIp4SettingsChange(String dbusPath, DataCallResponse dcr) throws RemoteException {
+        //Rlog.d(TAG, "onContextIp4SettingsChange() dcr="+dcr);
         if (dcr == null) {
             Rlog.e(TAG, "onContextIpSettingsChange: invalid DataCallResponse");
             return false;
         }
 
         if (dcr.active == DATA_CONNECTION_ACTIVE_PH_LINK_INACTIVE) {
-            // dcr's iface is null at this point, so use the last one we knew about
+            // dcr's iface seems to be null at this point, so use the last one we knew about
             if (mLastInterface.get(dbusPath) != null) {
                 String iface = mLastInterface.get(dbusPath);
-                mNetworkManagementService.setInterfaceDown(iface);
-                mNetworkManagementService.clearInterfaceAddresses(iface);
+                mNativeRild.shutdownInterface(iface);
             } else {
                 Rlog.e(TAG, "Interface unknown for context "+dbusPath+"; unable to ifdown");
                 return false;
@@ -329,28 +377,21 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
                 Rlog.w(TAG, "Got an active connection with no interface; ignoring (might be mid-statechange)");
                 return false;
             }
-            mNetworkManagementService.clearInterfaceAddresses(dcr.ifname);
-            if (dcr.addresses.length > 1) {
+            if (dcr.addresses.length != 1) {
                 // we currently can't get this state from oFono
-                Rlog.e(TAG, "Got a multi-address interface; ignoring");
+                Rlog.e(TAG, "Got interface with "+dcr.addresses.length+" addresses; ignoring");
                 return false;
             }
 
-            if (dcr.addresses.length == 1) {
-                InterfaceConfiguration ifaceCfg = new InterfaceConfiguration();
-                String[] pieces = dcr.addresses[0].split("/");
-                ifaceCfg.setLinkAddress(new LinkAddress(
-                        NetworkUtils.numericToInetAddress(pieces[0]),
-                        pieces.length == 2 ? Integer.parseInt(pieces[1]) : 32
-                ));
-                ifaceCfg.setInterfaceUp();
-                mNetworkManagementService.setInterfaceConfig(dcr.ifname, ifaceCfg);
-            } else {
-                mNetworkManagementService.setInterfaceUp(dcr.ifname);
-            }
-            if (dcr.mtu != PhoneConstants.UNSET_MTU) {
-                mNetworkManagementService.setMtu(dcr.ifname, dcr.mtu);
-            }
+            String[] addrPieces = dcr.addresses[0].split("/");
+            mNativeRild.configureInterface(
+                dcr.ifname,
+                addrPieces[0],
+                Integer.parseInt(addrPieces[1]),
+                dcr.gateways.length >= 1 ? dcr.gateways[0] : null,
+                dcr.dnses.length >= 1 ? dcr.dnses[0] : null,
+                dcr.dnses.length >= 2 ? dcr.dnses[1] : null
+            );
         } else {
             Rlog.w(TAG, "Ignoring context with unknown state dcr.active="+ dcr.active);
             return false;

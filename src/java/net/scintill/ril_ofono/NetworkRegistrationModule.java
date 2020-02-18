@@ -98,13 +98,10 @@ import static net.scintill.ril_ofono.RilOfono.runOnMainThreadDebounced;
     @Override
     @OkOnMainThread
     public Object getOperator() {
-        String STAR_EMOJI = "🌠";
-
         boolean registered = getProp(mNetRegProps, "Status", OfonoRegistrationState.unknown).isRegistered();
         String name = getProp(mNetRegProps, "Name", "");
         String mcc = getProp(mNetRegProps, "MobileCountryCode", "");
         String mnc = getProp(mNetRegProps, "MobileNetworkCode", "");
-        name = STAR_EMOJI + name + STAR_EMOJI; // make it obvious we're running this RIL
         if (registered && mcc.length() > 0 && mnc.length() > 0 && name.length() > 0) {
             return new String[] {
                     name, name, /* TODO does Ofono offer distinct short and long names? */

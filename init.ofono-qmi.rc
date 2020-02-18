@@ -11,7 +11,8 @@ service ofonod /system/bin/ofonod --nodetach --debug
     user radio
     group radio
     setenv OFONO_GOBI_DEVICE /dev/cdc-wdm2
-    setenv OFONO_GOBI_IFACE rmnet0
+    setenv OFONO_GOBI_IFACE wwan2
+    setenv OFONO_GOBI_SET_RAWIP _
     setenv OFONO_QMI_DEBUG 1
 
 # started after mdm9k-boot

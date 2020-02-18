@@ -19,15 +19,17 @@
 # Include this file in a product makefile to install ril_ofono with all dependencies,
 # configured for a QMI device.
 
+
 BOARD_OFONO_DRIVER := gobi
 
 PRODUCT_PACKAGES += \
 	mdm9k-boot mdm9k-efsd \
 	ofonod dbus-daemon \
-	RilOfono
+	RilOfono librilofono_rild
 
 PRODUCT_PROPERTY_OVERRIDES += \
-	ro.telephony.ril_class=net.scintill.ril_ofono/.RilWrapper
+	ro.telephony.ril_class=net.scintill.ril_ofono/.RilWrapper \
+	rild.libpath=/system/lib/librilofono_rild.so
 
 # XXX we may eventually need to get parameters in here for device paths etc.
 # prefer LOCAL_INIT_RC if it becomes available in our branch of the /build repo
